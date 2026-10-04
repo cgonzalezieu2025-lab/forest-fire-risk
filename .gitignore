@@ -1,0 +1,6 @@
+data/
+*.zarr/
+__pycache__/
+*.egg-info/
+.ipynb_checkpoints/
+.env
