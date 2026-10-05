@@ -14,5 +14,8 @@ dependencies:
   - pytest
   - pip:
       - earthengine-api
+      - gdown
+      - jupytext
+      - nbconvert
       - torch
       - torchvision
