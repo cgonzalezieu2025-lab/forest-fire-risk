@@ -12,12 +12,18 @@
 Pre-extracted tabular dataset from the Mesogeos Google Drive (`ml_tracks/a.danger_forecasting`).
 Each sample is a 30-day sequence for one 1 km cell; `positives.csv` ends on a fire day, `negatives.csv` on a random non-fire day.
 
-    mkdir -p data/track_a && cd data/track_a
-    python -c "
-    import gdown
-    for id, name in [('1IYONBanlerMi84wedto-Vck8vmfnyVUR','positives.csv'), ('1qB6TjMCgpVvM04ysCZSgE-5sjJ2C9gNJ','negatives.csv'),
-                     ('1PdwYyMX-51-zJ1dr36g8Hq-_7K7KTVAx','vars_dict.json'), ('1uXsRpCJa7JNlPXmHvzCCIxs3E0eC6NUE','norms.json')]:
-        gdown.download(id=id, output=name)"
+    python -m forest_fire_risk.download_data      # -> data/raw/track_a/ (~220 MB)
+    python -m forest_fire_risk.data               # sanity-print shapes and the year split
+
+Loading in your own code:
+
+    from forest_fire_risk.data import load_track_a, to_tabular, to_sequences, split_by_year, DYNAMIC, STATIC
+    df = load_track_a()                       # long: one row per (sample, day), 777k rows
+    tab = to_tabular(df, window=7)            # one row per sample, for sklearn / boosting
+    X_dyn, X_static, y, meta = to_sequences(df)   # [N,30,13], [N,14], [N] for LSTM / torch
+    split = split_by_year(tab)                # 'train' <=2019, 'val' 2020, 'test' 2021-22
+
+Never use `burned_areas`, `ignition_points`, `burned_area_has` as features: they encode the label.
 
 Full datacube (`mesogeos_cube.zarr`), burned-area and ecoregion shapefiles, and Track B samples live in the same Drive folder:
 https://drive.google.com/drive/folders/1aRXQXVvw6hz0eYgtJDoixjPQO-_bRKz9

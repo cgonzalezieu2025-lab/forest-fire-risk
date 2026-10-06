@@ -1,8 +1,8 @@
 # %% [markdown]
 # # EDA: Mesogeos Track A (wildfire danger forecasting)
 #
-# Data: `data/track_a/{positives,negatives}.csv` from the Mesogeos Google Drive
-# (`ml_tracks/a.danger_forecasting`). Each **sample is a 30-day sequence** (30 rows,
+# Data: `data/raw/track_a/{positives,negatives}.csv` (run `python -m forest_fire_risk.download_data`),
+# loaded with `forest_fire_risk.data.load_track_a`. Each **sample is a 30-day sequence** (30 rows,
 # `time_idx` 0..29) for one 1 km grid cell. Positives: day 29 is a fire day (burned
 # area from EFFIS). Negatives: random non-fire cell/date, sampled with the same
 # seasonal/geographic distribution as positives.
@@ -12,14 +12,13 @@
 # 3 label/leakage columns (`burned_areas`, `ignition_points`, `burned_area_has`).
 
 # %%
-import json
 from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
 ROOT = Path(__file__).resolve().parents[1] if "__file__" in globals() else Path.cwd().parent
-DATA = ROOT / "data" / "track_a"
+DATA = ROOT / "data" / "raw" / "track_a"
 OUT = ROOT / "reports" / "eda"
 OUT.mkdir(parents=True, exist_ok=True)
 
@@ -27,17 +26,10 @@ FIRE, NOFIRE = "#eb6834", "#2a78d6"   # categorical slots 2 and 1
 plt.rcParams.update({"figure.dpi": 110, "axes.spines.top": False, "axes.spines.right": False,
                      "axes.grid": True, "grid.alpha": 0.25, "axes.titleweight": "bold"})
 
-pos = pd.read_csv(DATA / "positives.csv").assign(label=1)
-neg = pd.read_csv(DATA / "negatives.csv").assign(label=0)
-# sample ids collide between files -> make them unique
-neg["sample"] += pos["sample"].max() + 1
-df = pd.concat([pos, neg], ignore_index=True)
-df["time"] = pd.to_datetime(df["time"])
+from forest_fire_risk.data import load_track_a, DYNAMIC, STATIC
 
-vars_dict = json.load(open(DATA / "vars_dict.json"))
-LEAK = ["burned_areas", "ignition_points", "burned_area_has"]
-DYNAMIC = [v for v in vars_dict["dynamic"].values() if v not in LEAK]
-STATIC = [v for v in vars_dict["static"].values() if v not in LEAK]
+df = load_track_a(DATA).rename(columns={"sample_id": "sample"})
+pos, neg = df[df.label == 1], df[df.label == 0]
 print(f"rows={len(df):,}  samples={df['sample'].nunique():,}  positives={pos['sample'].nunique():,}  negatives={neg['sample'].nunique():,}")
 print("dynamic:", DYNAMIC)
 print("static:", STATIC)
