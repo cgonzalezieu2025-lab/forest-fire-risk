@@ -25,7 +25,7 @@ its dot on the map are the same sample. One year-based split (`split_by_year`) i
 branch, so the models are compared on exactly the same test samples.
 
 Status (Oct 2026): data loaders, EDA, satellite tiles for all 2017–2022 samples and the map viewer
-are done. Models are next.
+are done. Models are next (see `docs/model_plan.md`).
 
 ## Setup
     conda env create -f environment.yml
@@ -149,6 +149,7 @@ Mesogeos baselines on Track A for reference: LSTM F1 0.79, Transformer F1 0.79 /
         gee_images.py       fetch Sentinel-2 tiles from Google Earth Engine
         images.py           TileDataset for the CNN branch
     app/                    map viewer (index.html + build_data.py), deployed on Vercel
+    docs/model_plan.md      modelling strategy: LR baseline -> RF -> CNN -> LR meta-learner fusion
     notebooks/              EDA (jupytext .py + executed .ipynb)
     reports/eda/            EDA figures
     tests/                  pytest sanity checks (synthetic data, no download needed)
@@ -162,6 +163,7 @@ Mesogeos baselines on Track A for reference: LSTM F1 0.79, Transformer F1 0.79 /
 - [x] Map viewer with walkthrough, gallery, CSV export and code snippets, deployed on Vercel
 
 ## Next steps
+The plan and reasoning are in `docs/model_plan.md`; build order:
 1. Tabular baseline (logistic regression, gradient boosting) on `to_tabular` with the year split.
 2. LSTM on `to_sequences`, compare with the Mesogeos numbers above.
 3. CNN on the tiles with `TileDataset`; decide what to do with the 644 cloudy tiles (drop or re-fetch).
