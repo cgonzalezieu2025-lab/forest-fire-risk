@@ -101,3 +101,28 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def with_images(meta, image_dir=None):
+    """`meta` rows (from `to_tabular` / `to_sequences`) that have a Sentinel-2 tile,
+    with `image_path`, scene `cloud` % and `date` columns joined from index.csv.
+    Samples outside 2017-2022 or with status=missing are dropped."""
+    image_dir = Path(image_dir or DATA_DIR.parents[1] / "images")
+    idx = pd.read_csv(image_dir / "index.csv")
+    idx = idx[idx.status == "ok"][["sample_id", "cloud", "date"]]
+    out = meta.merge(idx, on="sample_id")
+    out["image_path"] = [str(image_dir / f"{s}.png") for s in out.sample_id]
+    return out
+
+
+def load_tile(sample_id, image_dir=None):
+    """The Sentinel-2 RGB tile of one sample as a uint8 array [256, 256, 3]."""
+    from PIL import Image
+    image_dir = Path(image_dir or DATA_DIR.parents[1] / "images")
+    return np.asarray(Image.open(image_dir / f"{sample_id}.png").convert("RGB"))
+
+
+def load_tiles(meta, image_dir=None):
+    """Stack of tiles [N, 256, 256, 3] uint8 in the row order of `meta` (from `with_images`).
+    ~200 KB per tile, so pass a subset for anything beyond a few thousand rows."""
+    return np.stack([load_tile(s, image_dir) for s in meta.sample_id])

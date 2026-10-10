@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mesogeos Fire Samples</title>
+<meta name="description" content="Map of Mesogeos fire / no-fire samples 2017–2022 with Sentinel-2 tiles and the features used for fire-risk models.">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root { --bg:#fff; --fg:#1a1a1a; --muted:#666; --line:#e3e3e3; --fire:#d7301f; --nofire:#2b8cbe; --panel:#fafafa; --code:#f3f3f3; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#161616; --fg:#eee; --muted:#9a9a9a; --line:#333; --panel:#1f1f1f; --code:#262626; } }
+  :root[data-theme="dark"] { --bg:#161616; --fg:#eee; --muted:#9a9a9a; --line:#333; --panel:#1f1f1f; --code:#262626; }
+  * { box-sizing:border-box }
+  body { margin:0; font:14px/1.4 system-ui, sans-serif; background:var(--bg); color:var(--fg); height:100vh; display:grid; grid-template-columns:240px 1fr 320px; }
+  aside { background:var(--panel); border-right:1px solid var(--line); padding:16px; overflow:auto }
+  #detail { border-left:1px solid var(--line); border-right:0 }
+  main { position:relative; height:100vh } #map { height:100% }
+  h1 { font-size:16px; margin:0 0 4px } h2 { font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:16px 0 6px }
+  .sub { color:var(--muted); font-size:12px; margin-bottom:12px }
+  label.row { display:flex; align-items:center; gap:6px; margin:3px 0; cursor:pointer }
+  .dot { width:10px; height:10px; border-radius:50%; display:inline-block }
+  input[type=range] { width:100% } input[type=search], select { width:100%; padding:5px 6px; border:1px solid var(--line); border-radius:4px; background:var(--bg); color:var(--fg) }
+  #count { font-weight:600 }
+  button { padding:6px 10px; border:1px solid var(--line); border-radius:4px; background:var(--bg); color:var(--fg); cursor:pointer; font:inherit; font-size:13px }
+  button.primary { background:var(--fire); border-color:var(--fire); color:#fff } button.on { border-color:var(--fg) }
+  .btns { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px } .btns button { flex:1 }
+  .thumb { width:100%; aspect-ratio:1; background-size:1600% 1600%; border-radius:4px; background-color:var(--line); position:relative; overflow:hidden }
+  .thumb img { position:absolute; inset:0; width:100%; height:100% }
+  .noimg { width:100%; aspect-ratio:1; display:grid; place-items:center; color:var(--muted); border:1px dashed var(--line); border-radius:4px }
+  table { width:100%; border-collapse:collapse; font-size:12.5px } td { padding:2px 0; border-bottom:1px solid var(--line) } td:last-child { text-align:right; font-variant-numeric:tabular-nums }
+  .tag { display:inline-block; padding:1px 8px; border-radius:10px; color:#fff; font-size:12px; font-weight:600 }
+  pre { background:var(--code); padding:10px; border-radius:4px; font-size:11.5px; line-height:1.45; overflow:auto; margin:0; white-space:pre } .code { position:relative } .code button { position:absolute; top:6px; right:6px; padding:2px 8px; font-size:11px }
+  #gallery { position:absolute; inset:0; z-index:500; background:var(--bg); overflow:auto; padding:12px; display:none; grid-template-columns:repeat(auto-fill, 104px); grid-auto-rows:104px; gap:6px; align-content:start; justify-content:space-between }
+  #gallery.open { display:grid } #gallery .thumb { width:104px; height:104px; aspect-ratio:auto; border:3px solid transparent; cursor:pointer; border-radius:6px } #gallery .thumb:hover { transform:scale(1.04) }
+  #gallery .thumb.fire { border-color:var(--fire) } #gallery .thumb.nofire { border-color:var(--nofire) } #gallery .note { grid-column:1/-1; color:var(--muted); font-size:12px }
+  .leaflet-container { background:var(--bg) }
+  #spot { position:fixed; z-index:1000; border-radius:6px; box-shadow:0 0 0 9999px rgba(0,0,0,.55); pointer-events:none; transition:all .25s }
+  #card { position:fixed; z-index:1001; width:300px; background:var(--bg); color:var(--fg); border:1px solid var(--line); border-radius:8px; padding:16px; box-shadow:0 8px 30px rgba(0,0,0,.3) }
+  #card h3 { margin:0 0 6px; font-size:15px } #card p { margin:0 0 12px; font-size:13px; color:var(--muted) }
+  #card .foot { display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--muted) }
+  @media (max-width:900px) { body { grid-template-columns:1fr; grid-template-rows:auto 60vh auto; height:auto } main { height:60vh } aside { border:0; border-bottom:1px solid var(--line) } }
+</style>
+</head>
+<body>
+<aside>
+  <h1>Mesogeos fire samples</h1>
+  <div class="sub">2017–2022 Track A, 1 km cells with Sentinel-2 tiles</div>
+  <div><span id="count">…</span> shown <span class="sub" id="counts" style="display:inline"></span></div>
+  <div id="sec-search"><h2>Find a sample</h2><input type="search" id="search" placeholder="sample_id, e.g. pos_1611" list="ids"><datalist id="ids"></datalist></div>
+  <div id="sec-label"><h2>Label</h2>
+  <label class="row"><input type="checkbox" data-f="label" value="1" checked><span class="dot" style="background:var(--fire)"></span>Fire</label>
+  <label class="row"><input type="checkbox" data-f="label" value="0" checked><span class="dot" style="background:var(--nofire)"></span>No fire</label></div>
+  <div id="sec-filters"><h2>Year</h2><div id="years"></div>
+  <h2>Image</h2>
+  <label class="row"><input type="checkbox" id="hasimg" checked>Only samples with a tile</label>
+  <label class="row" style="display:block">Max scene cloud: <b id="cloudv">100</b>%<input type="range" id="cloud" min="0" max="100" value="100"></label></div>
+  <div id="sec-color"><h2>Colour points by</h2>
+  <select id="colorby"><option value="label">Label</option><option value="t2m">Air temperature</option><option value="rh">Relative humidity</option><option value="ndvi">NDVI</option><option value="smi">Soil moisture</option><option value="lc_forest">Forest fraction</option></select></div>
+  <div id="sec-tools"><h2>This selection</h2>
+  <div class="btns"><button id="gal">Gallery</button><button id="csv">Download CSV</button></div>
+  <div class="btns"><button id="code-sel">Python for this selection</button></div>
+  <div id="selcode" style="margin-top:8px"></div></div>
+  <button id="help" style="margin-top:20px; width:100%">? Walkthrough</button>
+</aside>
+<main><div id="map"></div><div id="gallery"></div></main>
+<aside id="detail"><div class="sub">Click a point to see its Sentinel-2 tile, the Mesogeos features on the window's last day, and the Python to load it.</div></aside>
+
+<script>
+const IMG = location.hostname.endsWith('vercel.app') ? null : '../data/images/';   // full-res tiles only when served next to the repo's data/ folder
+const DESC = {t2m:['Air temp (2 m)','°C',k=>k-273.15], d2m:['Dew point','°C',k=>k-273.15], rh:['Relative humidity','%',v=>v*100], tp:['Precipitation','mm',v=>v*1000],
+  sp:['Surface pressure','hPa',v=>v/100], ssrd:['Solar radiation','MJ/m²',v=>v/1e6], wind_speed:['Wind speed','m/s'], wind_direction:['Wind direction','°'],
+  lst_day:['LST day','°C',k=>k-273.15], lst_night:['LST night','°C',k=>k-273.15], ndvi:['NDVI',''], lai:['LAI',''], smi:['Soil moisture index',''],
+  dem:['Elevation','m'], slope:['Slope',''], aspect:['Aspect',''], curvature:['Curvature',''], roads_distance:['Distance to road','m'], population:['Population',''],
+  lc_forest:['Forest','%',v=>v*100], lc_shrubland:['Shrubland','%',v=>v*100], lc_grassland:['Grassland','%',v=>v*100], lc_agriculture:['Agriculture','%',v=>v*100],
+  lc_sparse_vegetation:['Sparse veg.','%',v=>v*100], lc_settlement:['Settlement','%',v=>v*100], lc_water_bodies:['Water','%',v=>v*100], lc_wetland:['Wetland','%',v=>v*100]};
+const GROUPS = {Weather:['t2m','d2m','rh','tp','sp','ssrd','wind_speed','wind_direction'], Vegetation:['ndvi','lai','lst_day','lst_night','smi'],
+  Terrain:['dem','slope','aspect','curvature'], 'Land cover':['lc_forest','lc_shrubland','lc_grassland','lc_agriculture','lc_sparse_vegetation','lc_settlement','lc_water_bodies','lc_wetland'], Human:['population','roads_distance']};
+const fmt = (k, v) => { if (v == null) return '–'; const d = DESC[k]; const x = d[2] ? d[2](v) : v; return (Math.abs(x) >= 100 ? x.toFixed(0) : x.toFixed(2)) + (d[1] ? ' ' + d[1] : ''); };
+const $ = id => document.getElementById(id);
+
+const map = L.map('map', {preferCanvas: true}).setView([40, 14], 5);
+const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution: '© OpenStreetMap', maxZoom: 19}).addTo(map);
+const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {attribution: 'Esri World Imagery', maxZoom: 19});
+L.control.layers({'Map': osm, 'Satellite': sat}).addTo(map);
+const layer = L.layerGroup().addTo(map);
+let data = [], byId = {}, rows = [], filt = {}, allYears = [];
+
+const ramp = t => { t = Math.max(0, Math.min(1, t)); const c = [[49,54,149],[116,173,209],[254,224,144],[215,48,39]]; const i = Math.min(2, Math.floor(t*3)), f = t*3-i; return `rgb(${c[i].map((a,j)=>Math.round(a+(c[i+1][j]-a)*f)).join(',')})`; };
+const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const labelColor = r => r.label ? cssVar('--fire') : cssVar('--nofire');
+const thumb = (r, cls = '') => r.sprite ? `<div class="thumb ${cls}" data-id="${r.sample_id}" title="${r.sample_id}" style="background-image:url(sprites/${r.sprite[0]}.jpg);background-position:${r.sprite[1]/15*100}% ${r.sprite[2]/15*100}%">${IMG ? `<img src="${IMG}${r.sample_id}.png" alt="" onerror="this.remove()" loading="lazy">` : ''}</div>` : `<div class="noimg ${cls}">no tile</div>`;
+
+function render() {
+  filt = {labels: [...document.querySelectorAll('[data-f=label]:checked')].map(e => +e.value), years: [...document.querySelectorAll('[data-f=year]:checked')].map(e => +e.value),
+          hasimg: $('hasimg').checked, cloud: +$('cloud').value, by: $('colorby').value};
+  rows = data.filter(r => filt.labels.includes(r.label) && filt.years.includes(+r.time.slice(0,4)) && (!filt.hasimg || r.cloud != null) && (r.cloud == null || r.cloud <= filt.cloud));
+  let lo = 0, hi = 1; if (filt.by !== 'label') { const v = rows.map(r => r[filt.by]).filter(x => x != null).sort((a,b)=>a-b); lo = v[Math.floor(v.length*.02)]; hi = v[Math.floor(v.length*.98)]; }
+  layer.clearLayers();
+  for (const r of rows) {
+    const c = filt.by === 'label' ? labelColor(r) : r[filt.by] == null ? '#999' : ramp((r[filt.by]-lo)/(hi-lo));
+    const m = L.circleMarker([r.y, r.x], {radius: 3, weight: 0, fillColor: c, fillOpacity: .75});
+    m.on('click', () => show(r)); m.bindTooltip(`${r.label ? 'Fire' : 'No fire'} · ${r.time}`); layer.addLayer(m);
+  }
+  const nf = rows.filter(r => r.label).length;
+  $('count').textContent = rows.length.toLocaleString(); $('counts').textContent = `(${nf.toLocaleString()} fire, ${(rows.length - nf).toLocaleString()} no fire)`;
+  $('selcode').innerHTML = ''; if ($('gallery').classList.contains('open')) gallery();
+}
+
+function show(r, fly = false) {
+  if (fly) map.flyTo([r.y, r.x], Math.max(map.getZoom(), 9), {duration: 1});
+  history.replaceState(null, '', '#' + r.sample_id);
+  const groups = Object.entries(GROUPS).map(([g, ks]) => `<h2>${g}</h2><table>${ks.map(k => `<tr><td>${DESC[k][0]}</td><td>${fmt(k, r[k])}</td></tr>`).join('')}</table>`).join('');
+  const code = `from forest_fire_risk.data import load_track_a, to_sequences, load_tile
+
+X_dyn, X_static, y, meta = to_sequences(load_track_a())
+i = meta.index[meta.sample_id == "${r.sample_id}"][0]
+seq = X_dyn[i]       # [30, 13] daily drivers, day 29 = ${r.time}
+static = X_static[i] # [14] terrain, land cover, population, roads
+label = y[i]         # ${r.label}${r.sprite ? `\ntile = load_tile("${r.sample_id}")  # [256, 256, 3] uint8 RGB, scene ${r.date}` : ''}`;
+  $('detail').innerHTML = `
+    <span class="tag" style="background:${labelColor(r)}">${r.label ? 'Fire' : 'No fire'}</span>
+    <h1 style="margin-top:8px">${r.sample_id}</h1>
+    <div class="sub">${r.time} · ${r.y.toFixed(3)}°N ${r.x.toFixed(3)}°E${r.cloud != null ? ` · tile ${r.date}, ${r.cloud.toFixed(0)}% cloud` : ''}</div>
+    ${thumb(r)}<div class="sub" style="margin-top:4px">2.56 km Sentinel-2 RGB, ≤15 days before the ${r.label ? 'fire' : 'window end'}</div>
+    <h2>Load it in Python</h2>${codeBlock(code)}${groups}`;
+}
+
+function codeBlock(code) { return `<div class="code"><pre>${code.replace(/</g, '&lt;')}</pre><button onclick="copy(this)">Copy</button></div>`; }
+function copy(btn) { navigator.clipboard.writeText(btn.previousElementSibling.textContent).then(() => { btn.textContent = 'Copied'; setTimeout(() => btn.textContent = 'Copy', 1500); }); }
+
+function selectionCode() {
+  const conds = [];
+  if (filt.years.length < allYears.length) conds.push(`tab.time.dt.year.isin([${filt.years.join(', ')}])`);
+  if (filt.labels.length < 2) conds.push(`(tab.label == ${filt.labels[0] ?? 'None'})`);
+  if (filt.cloud < 100) conds.push(`(tab.cloud <= ${filt.cloud})`);
+  const nf = rows.filter(r => r.label).length;
+  const code = `from forest_fire_risk.data import load_track_a, to_tabular, with_images, split_by_year, load_tiles
+
+tab = to_tabular(load_track_a(), window=7)${filt.hasimg ? '\ntab = with_images(tab)        # keeps only samples with a tile, adds image_path / cloud / date' : ''}
+sel = tab[${conds.length ? conds.join(' & ') : 'tab.time.dt.year >= 2017'}]
+# ${rows.length.toLocaleString()} rows: ${nf.toLocaleString()} fire, ${(rows.length - nf).toLocaleString()} no fire
+split = split_by_year(sel)    # 'train' <=2019, 'val' 2020, 'test' 2021-22${filt.hasimg ? '\ntiles = load_tiles(sel.head(500))   # [N, 256, 256, 3] uint8; subset, ~200 KB per tile' : ''}`;
+  $('selcode').innerHTML = codeBlock(code);
+}
+
+function gallery() {
+  const g = $('gallery'), shown = rows.filter(r => r.sprite).slice(0, 600);
+  g.innerHTML = `<div class="note">${shown.length < rows.length ? `First ${shown.length} of ${rows.length.toLocaleString()} tiles in the selection (narrow the filters to see others). ` : `${shown.length} tiles. `}Red border = fire, blue = no fire. Click one to open it.</div>` + shown.map(r => thumb(r, r.label ? 'fire' : 'nofire')).join('');
+  g.onclick = e => { const t = e.target.closest('.thumb'); if (t) show(byId[t.dataset.id], true); };
+}
+
+function downloadCsv() {
+  const cols = Object.keys(data[0]).filter(k => k !== 'sprite');
+  const csv = [cols.join(',')].concat(rows.map(r => cols.map(k => r[k] ?? '').join(','))).join('\n');
+  const a = Object.assign(document.createElement('a'), {href: URL.createObjectURL(new Blob([csv], {type: 'text/csv'})), download: 'mesogeos_selection.csv'}); a.click();
+}
+
+fetch('samples.json').then(r => r.json()).then(d => {
+  data = d; d.forEach(r => byId[r.sample_id] = r);
+  allYears = [...new Set(d.map(r => +r.time.slice(0,4)))].sort();
+  $('years').innerHTML = allYears.map(y => `<label class="row"><input type="checkbox" data-f="year" value="${y}" checked>${y}</label>`).join('');
+  $('ids').innerHTML = d.filter(r => r.sprite).map(r => `<option value="${r.sample_id}">`).join('');
+  document.querySelectorAll('aside input:not(#search), aside select').forEach(e => e.addEventListener('input', render));
+  $('cloud').addEventListener('input', e => $('cloudv').textContent = e.target.value);
+  $('search').addEventListener('change', e => { const r = byId[e.target.value.trim()]; if (r) show(r, true); else e.target.setCustomValidity('unknown sample_id'); });
+  $('search').addEventListener('input', e => e.target.setCustomValidity(''));
+  $('gal').onclick = () => { const open = $('gallery').classList.toggle('open'); $('gal').classList.toggle('on', open); $('gal').textContent = open ? 'Back to map' : 'Gallery'; if (open) gallery(); };
+  $('csv').onclick = downloadCsv; $('code-sel').onclick = selectionCode;
+  render();
+  const r = byId[location.hash.slice(1)]; if (r) show(r, true);
+  let toured = false; try { toured = localStorage.getItem('toured'); } catch {}
+  if (!toured && !r) tour(0);
+});
+
+// ---- first-visit walkthrough (ponytail: hand-rolled, 7 steps, no library) ----
+const STEPS = [
+  {title: 'Welcome', text: 'Every dot is a 1 km cell from the Mesogeos dataset, 2017–2022: 11,579 places with a Sentinel-2 tile. This walkthrough takes 30 seconds.'},
+  {el: '#sec-label', title: 'Fire vs no fire', text: 'Red dots burned on the window\'s last day, blue ones did not. Untick one to see the other alone.'},
+  {el: '#sec-filters', title: 'Filter', text: 'Narrow by year, hide samples without a tile, or cap the cloud cover of the scene the tile came from.'},
+  {el: '#sec-color', title: 'Colour by a feature', text: 'Switch from label to temperature, humidity, NDVI, soil moisture or forest fraction to see how the drivers vary across the basin.'},
+  {el: '#sec-tools', title: 'Work with the selection', text: 'Gallery shows the tiles of everything currently on the map. Download the rows as CSV, or get the pandas code that selects exactly these samples in the repo.'},
+  {el: '#map', title: 'Click any dot', text: 'Zoom with the wheel, hover for the date, click to open a sample. Here is a fire from 2021 as an example. Search by sample_id in the sidebar; the URL updates so you can share a sample.', run: openExample},
+  {el: '#detail', title: 'The sample', text: 'Its Sentinel-2 tile from the days before the fire, a Python snippet that loads its 30-day sequence and tile, and the weather, vegetation, terrain and land-cover features. Replay this any time with the ? button.'}];
+let step = -1;
+function openExample() { show(data.find(r => r.label && r.cloud != null && r.cloud < 2 && r.time.startsWith('2021-07')), true); }
+function tour(i) {
+  $('spot')?.remove(); $('card')?.remove();
+  if (i >= STEPS.length) { step = -1; try { localStorage.setItem('toured', '1'); } catch {} return; }
+  step = i; const st = STEPS[i]; st.run?.();
+  const spot = document.body.appendChild(Object.assign(document.createElement('div'), {id: 'spot'}));
+  const card = document.body.appendChild(Object.assign(document.createElement('div'), {id: 'card'}));
+  card.innerHTML = `<h3>${st.title}</h3><p>${st.text}</p><div class="foot"><span>${i + 1} / ${STEPS.length}</span><span>
+    <button id="skip">Skip</button> <button id="next" class="primary">${i + 1 < STEPS.length ? 'Next' : 'Done'}</button></span></div>`;
+  card.querySelector('#skip').onclick = () => tour(STEPS.length); card.querySelector('#next').onclick = () => tour(i + 1);
+  const b = st.el ? document.querySelector(st.el).getBoundingClientRect() : {left: innerWidth / 2, top: innerHeight / 2, width: 0, height: 0, right: innerWidth / 2};
+  Object.assign(spot.style, {left: b.left - 6 + 'px', top: b.top - 6 + 'px', width: b.width + 12 + 'px', height: b.height + 12 + 'px'});
+  const toLeft = b.left > innerWidth / 2;
+  let left = st.el ? (toLeft ? b.left - 316 : b.right + 12) : innerWidth / 2 - 150, top = st.el ? b.top : innerHeight / 2 - 100;
+  if (st.el === '#map') { left = b.left + b.width / 2 - 150; top = b.top + 80; }
+  Object.assign(card.style, {left: Math.max(8, Math.min(left, innerWidth - 308)) + 'px', top: Math.max(8, Math.min(top, innerHeight - 220)) + 'px'});
+}
+$('help').onclick = () => tour(0);
+document.addEventListener('keydown', e => { if (step < 0) return; if (e.key === 'Escape') tour(STEPS.length); if (e.key === 'Enter' || e.key === 'ArrowRight') tour(step + 1); });
+</script>
+</body>
+</html>
