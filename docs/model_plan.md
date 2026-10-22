@@ -166,7 +166,7 @@ on predictions over the base models' own training data silently inflates the sco
 
 ## Cross-cutting caveats (from the EDA)
 
-- **Negatives are not season-matched** — spread evenly Mar-Oct while fires peak Jul-Aug,
+- **Negatives are not season-matched** — spread fairly evenly Mar-Oct (a few in every month) while fires peak Jul-Aug,
   so any model can score partly by learning "hot month." Evaluate with and without the
   seasonal resampling of negatives to know how much of the score is real. Applies to
   every model.

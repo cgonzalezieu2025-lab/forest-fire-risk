@@ -50,7 +50,7 @@ What is in it:
 | | |
 |---|---|
 | Samples | 25,916 (8,574 fire, 17,342 no-fire, ratio 1:2) |
-| Period | 2006–2022, fire season only (Mar–Oct) |
+| Period | 2006–2022, every month (most samples Mar–Oct) |
 | Region | whole Mediterranean basin, 1 km cells (`x` = lon, `y` = lat) |
 | Shape | **each sample is a 30-day sequence**, one row per day (`time_idx` 0–29); day 29 is the fire day for positives |
 | Dynamic features (13) | `t2m`, `d2m`, `rh`, `tp`, `sp`, `ssrd`, `wind_speed`, `wind_direction` (ERA5-Land weather); `lst_day`, `lst_night`, `ndvi`, `lai` (MODIS); `smi` (soil moisture) |
@@ -88,7 +88,7 @@ sample, or `status=missing` when nothing usable was found.
 
 Result of the full run (Oct 2026): 11,579 tiles, 414 missing (3.5%). Most gaps are 2017
 negatives from before L2A coverage started (361 of 2,365); fires miss only 1-9% per year.
-Scene cloud % is low (median 0.2%, 95th percentile 23%); 644 tiles come from scenes >20% cloudy.
+Scene cloud % is low (median 0.2%, 95th percentile 23%); 657 tiles come from scenes >20% cloudy.
 `with_images(meta)` in `data.py` joins the index onto the tabular / sequence meta and adds
 `image_path`, so the image and tabular branches use the same rows and the same year split.
 
@@ -139,7 +139,7 @@ Full write-up with all figures: **`reports/tabular/README.md`**. Code: `src/fore
     python -m forest_fire_risk.tabular_figures    # figures -> reports/tabular/figures/
 
 The 27 fire-day features of the 10,922 samples that have a tile from a scene with ≤ 20 % cloud
-(the cloud rule is expected to match the CNN; not confirmed yet, it's `MAX_CLOUD` in `tabular.py`).
+(the same cloud rule as the CNN, agreed with the image branch; it's `MAX_CLOUD` in `tabular.py`).
 
 | Years | Role | Used to |
 |---|---|---|
@@ -158,7 +158,8 @@ figures in `reports/eda/`). Main findings so far:
 - Fire days are hotter and drier (`t2m`, `lst_*`, `ssrd` up; `rh`, `smi`, `tp` down) and the gap
   widens over the last ~10 days of the window, so the sequence carries signal beyond the last day.
   Wind speed barely differs.
-- Negatives are spread evenly over Mar–Oct while fires peak in Jul–Aug. The sampling is not
+- Negatives are spread fairly evenly over Mar–Oct (with a few in every month) while fires peak in
+  Jul–Aug. The sampling is not
   season-matched, so a model can score well just by learning "hot month". Keep this in mind
   when reading metrics; resampling negatives to the fire-month distribution is an option.
 - MODIS land-surface temperature is missing far more often on no-fire days (fire days are
@@ -202,7 +203,7 @@ Mesogeos baselines on Track A for reference: LSTM F1 0.79, Transformer F1 0.79 /
 The plan and reasoning are in `docs/model_plan.md`; build order:
 1. ~~Tabular baseline and random forest~~ done, see `reports/tabular/README.md`.
 2. LSTM on `to_sequences`, compare with the Mesogeos numbers above.
-3. CNN on the tiles with `TileDataset`, on the same samples and years as the tabular models. Confirm
-   the cloudy-tile rule (the index has 657 tiles above 20 % cloud; the tabular models drop them).
+3. CNN on the tiles with `TileDataset`, on the same samples and years as the tabular models. Both
+   drop the 657 tiles above 20 % scene cloud.
 4. Fusion model on `reports/tabular/predictions.csv` (`p_rf`) + CNN predictions: train on 2020,
    evaluate on 2021–22, standard and season-matched.
