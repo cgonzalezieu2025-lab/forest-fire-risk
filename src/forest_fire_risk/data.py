@@ -103,12 +103,35 @@ if __name__ == "__main__":
     main()
 
 
+MAP_URL = "https://forest-fire-risk-map.vercel.app/samples.json"
+MAP_INDEX = DATA_DIR.parents[1] / "tile_index_from_map.csv"
+
+
+def tile_index(image_dir=None):
+    """Which 2017-2022 samples have a Sentinel-2 tile: sample_id, status (ok / missing),
+    scene cloud %, scene date.
+
+    Reads `<image_dir>/index.csv` (written by gee_images) when it exists. Otherwise falls
+    back to data/tile_index_from_map.csv, built once from the map viewer's data (made from
+    the same index.csv), so the tabular models need neither GEE nor the 1.7 GB of tiles.
+    It is kept out of data/images/ on purpose: gee_images treats rows there as downloaded."""
+    index = Path(image_dir or DATA_DIR.parents[1] / "images") / "index.csv"
+    if index.exists():
+        return pd.read_csv(index)
+    if not MAP_INDEX.exists():
+        recs = pd.read_json(MAP_URL)
+        recs["status"] = np.where(recs.cloud.notna(), "ok", "missing")
+        MAP_INDEX.parent.mkdir(parents=True, exist_ok=True)
+        recs[["sample_id", "status", "cloud", "date"]].to_csv(MAP_INDEX, index=False)
+    return pd.read_csv(MAP_INDEX)
+
+
 def with_images(meta, image_dir=None):
     """`meta` rows (from `to_tabular` / `to_sequences`) that have a Sentinel-2 tile,
-    with `image_path`, scene `cloud` % and `date` columns joined from index.csv.
+    with `image_path`, scene `cloud` % and `date` columns joined from the tile index.
     Samples outside 2017-2022 or with status=missing are dropped."""
     image_dir = Path(image_dir or DATA_DIR.parents[1] / "images")
-    idx = pd.read_csv(image_dir / "index.csv")
+    idx = tile_index(image_dir)
     idx = idx[idx.status == "ok"][["sample_id", "cloud", "date"]]
     out = meta.merge(idx, on="sample_id")
     out["image_path"] = [str(image_dir / f"{s}.png") for s in out.sample_id]
