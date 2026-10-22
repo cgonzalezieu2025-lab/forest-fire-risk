@@ -1,0 +1,19 @@
+{
+  "logreg": {
+    "params": {
+      "logisticregression__C": 0.1
+    },
+    "cv_auprc": 0.6837484766636587,
+    "threshold": 0.34316810567818534
+  },
+  "rf": {
+    "params": {
+      "randomforestclassifier__class_weight": null,
+      "randomforestclassifier__max_depth": 20,
+      "randomforestclassifier__max_features": "sqrt",
+      "randomforestclassifier__min_samples_leaf": 1
+    },
+    "cv_auprc": 0.7853554993843885,
+    "threshold": 0.369
+  }
+}
