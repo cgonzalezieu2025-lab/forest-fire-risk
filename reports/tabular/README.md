@@ -215,7 +215,7 @@ at a modest cost in precision, which F1 rewards.
 
 The **month-only baseline** predicts, for every sample, the share of fires in that calendar month
 in 2017-19 (e.g. August is mostly fires). It uses no weather or terrain at all and shows how far
-the season alone gets you.
+the season alone gets you; section 7 explains why this matters.
 
 ## 6. Results on the test years 2021-22
 
@@ -247,23 +247,48 @@ raises far fewer false alarms (494 vs 772 non-fires flagged as fire).
 
 ## 7. The "fire season" shortcut and season-matched evaluation
 
-**The problem.** In Mesogeos Track A the fires are real fires, so they cluster in summer: 72 % of
-the test fires are in July-August. The non-fires were sampled roughly evenly through the year:
-only 28 % are in July-August. So in this dataset a sample from August is very likely a fire
-*just because it is August*, not because conditions that day were dangerous. A model can score
-well by learning "summer-like weather → fire" instead of "dangerous conditions → fire". In reality
-non-fire days in August are plentiful; the dataset just doesn't contain many of them.
+> **Season matching is a way of scoring, not a different model.** Nothing is retrained. There is
+> one logistic regression and one random forest; each gets two test scores, *standard* and
+> *season-matched*. Fusion uses this same random forest (`p_rf`), and fusion should also be
+> scored both ways.
 
-**The fix: season-matched evaluation.** We re-weight the test non-fires so that their months
-follow the same distribution as the fires: a July or August non-fire counts up to 2.7 times, an
-April non-fire about 0.05 times (fires keep weight 1, and the total weight of the non-fires is
-unchanged). After re-weighting, the month of a sample carries no information about the label,
-so a model must tell an August fire from an August non-fire. Nothing is retrained; only the test
-scoring changes. (Re-weighting instead of throwing away non-fires: there are fewer July-August
-non-fires than fires in the test set, so real subsampling would discard most of it.)
+**Step 1: the dataset has a quirk.** A real fire happens when it happens, and that is mostly in
+summer. The no-fire samples were picked by the dataset's creators fairly evenly across the year.
+In the test years 2021-22:
 
-The check that it works: the month-only baseline drops to **ROC-AUC 0.500 exactly**, i.e. pure
-chance, under season matching.
+| | July-August | April |
+|---|---|---|
+| Fire samples | 953 (72 % of all test fires) | 7 |
+| No-fire samples | 686 (28 % of all test non-fires) | 270 |
+
+So a random August sample is a fire about 6 times out of 10, an April sample about 3 times out of
+100. You would guess well from the date alone. This is an artefact of how the dataset was built:
+in reality there are plenty of non-fire days in August, the dataset just does not contain many.
+
+**Step 2: the month-only baseline measures exactly that.** It is a deliberately simple "model"
+that ignores weather, terrain and everything else. Its only rule is: *the chance of fire is the
+share of fires in this calendar month in 2017-19*. It still reaches **AUPRC 0.55**, where blind
+guessing gets 0.35. That 0.55 is what you get for free from the calendar. It is a yardstick, like
+the logistic regression baseline: if the random forest scored only 0.56, it would have learned
+almost nothing beyond the calendar. It scores 0.83.
+
+**Step 3: why our models can use this shortcut.** Month is *not* one of the features, but
+temperature, solar radiation, vegetation and others all reveal the season. A model can learn
+"hot and sunny → summer → in this dataset, probably fire". That is a pattern of the sampling, not
+of fire danger. What fire-danger maps actually need is to tell *which* places will burn when
+every place is hot, i.e. an August fire from an August non-fire. Because the test set has
+relatively few August non-fires, the standard score measures that skill only weakly.
+
+**Step 4: season-matched evaluation removes the shortcut.** We re-weight the test non-fires so
+that, together, they have the same month mix as the fires: a July or August non-fire counts about
+2.5 times, an April non-fire about 0.05 times (fires keep weight 1; the total weight of the
+non-fires is unchanged, so chance stays at 0.351). It is as if the test set had been built
+fairly, every fire compared against non-fires from the same time of year. (We re-weight instead
+of throwing away non-fires: there are fewer July-August non-fires than fires, so real
+subsampling would discard most of the test set.) Code: `season_weights` in `tabular.py`.
+
+Now the month says nothing about the label. The check that this works: the month-only baseline
+drops to **ROC-AUC 0.500 exactly**, a coin flip, and AUPRC 0.351, chance.
 
 ![Standard vs season-matched](figures/03_season_matched.png)
 
@@ -275,11 +300,22 @@ chance, under season matching.
 | Random forest | 0.829 | 0.731 | 0.899 | 0.831 |
 | Month only | 0.554 | 0.351 (= chance) | 0.757 | 0.500 (= chance) |
 
-**How to read it.** Both models lose about 0.1 AUPRC when the season shortcut is removed, so part
-of their standard score is "knowing the season". But both stay far above chance (0.351), and the
-gap between RF and LR is unchanged (≈0.12 AUPRC). The season-matched numbers are the honest
-measure of how well the models recognise fire danger *within* the fire season, and that is what
-we recommend quoting alongside the standard scores.
+**How to read it.**
+- *Random forest 0.83 → 0.73:* about 0.10 AUPRC of its standard score came from recognising the
+  season. The remaining 0.73, far above the 0.35 chance level, is genuine skill: telling a
+  fire day from a non-fire day *within the same part of the year*.
+- *Logistic regression 0.71 → 0.60:* the same kind of drop, still clearly above chance.
+- The gap between the two models (≈0.12 AUPRC) is the same under both scorings, so the random
+  forest's advantage is not a seasonal artefact.
+
+**Suggested sentence for the project report:** *"Part of the scores reflects the dataset's
+seasonal sampling: the month alone gives AUPRC 0.55. Under a season-matched evaluation the random
+forest keeps AUPRC 0.73 against 0.35 for chance, so it detects fire danger within the fire season,
+not just the season itself."*
+
+**Not done (possible extension):** training a model that *cannot* use the shortcut, e.g. by
+applying the same re-weighting to the training data. The proposal only commits to reporting
+results with and without season matching, which is what is done here.
 
 ## 8. What drives the predictions
 
@@ -392,7 +428,8 @@ inputs, so mild mis-calibration is acceptable.
   trained on 2017-19 only; otherwise fusion's 2020 inputs are not comparable.
 - Fusion also needs its own decision threshold, which must not come from the test set; one
   option is cross-validation within 2020.
-- Report fusion with the same metrics, and season-matched too (`season_weights` in `tabular.py`).
+- Report fusion with the same metrics, both standard and season-matched (`season_weights` in
+  `tabular.py`). There is no separate "season-matched model": it is the same `p_rf`, scored two ways.
 
 ## 13. Limitations and open decisions
 
