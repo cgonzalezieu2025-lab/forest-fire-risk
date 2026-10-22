@@ -8,7 +8,9 @@ We predict a binary fire / no-fire label from two kinds of input and compare the
 2. **Satellite images** of the same patch from Sentinel-2, pulled via Google Earth Engine. A CNN.
 
 Then a fused model that uses both. Mesogeos covers 2006–2022 and Sentinel-2 starts in 2017,
-so the image branch and the fusion work on the 2017–2022 overlap.
+so **every model, the tabular ones included, is trained and tested on the 2017–2022 samples that
+have a Sentinel-2 tile**. That way all models are compared on exactly the same samples, and
+fusion has a tabular and an image prediction for each of them.
 
 ## How it fits together
 
@@ -24,8 +26,9 @@ Everything is keyed by `sample_id`, so a tabular row, its 30-day sequence, its s
 its dot on the map are the same sample. One year-based split (`split_by_year`) is used by every
 branch, so the models are compared on exactly the same test samples.
 
-Status (Oct 2026): data loaders, EDA, satellite tiles for all 2017–2022 samples and the map viewer
-are done. Models are next (see `docs/model_plan.md`).
+Status (Oct 2026): data loaders, EDA, satellite tiles for all 2017–2022 samples, the map viewer and
+the tabular models (logistic regression, random forest; see `reports/tabular/README.md`) are done.
+CNN and fusion are next (see `docs/model_plan.md`).
 
 ## Setup
     conda env create -f environment.yml
@@ -89,6 +92,12 @@ Scene cloud % is low (median 0.2%, 95th percentile 23%); 644 tiles come from sce
 `with_images(meta)` in `data.py` joins the index onto the tabular / sequence meta and adds
 `image_path`, so the image and tabular branches use the same rows and the same year split.
 
+**Without the images:** to know *which* samples have a tile you don't need GEE or the 1.7 GB of
+tiles. If `data/images/index.csv` is missing, `tile_index()` / `with_images()` fall back to
+`data/tile_index_from_map.csv`, downloaded once from the map viewer's data (built from the same
+`index.csv`, same 11,579 ok / 414 missing). The fallback lives outside `data/images/` on purpose:
+`gee_images.py` treats rows in `data/images/index.csv` as already downloaded.
+
 **Leakage warning:** never use images from the fire day or later. Smoke and burn scars are the
 label. The lookback window stops the day before day 29.
 
@@ -122,6 +131,26 @@ Locally the page shows full-res tiles if `data/images/` is there. Source is `app
     tiles = load_tiles(tab[split == "val"])                   # [N, 256, 256, 3], ~200 KB per tile
     ds = TileDataset(tab[split == "train"])                   # torch-style: (img [3,256,256], static [14], label)
 
+## Tabular models (logistic regression, random forest)
+Full write-up with all figures: **`reports/tabular/README.md`**. Code: `src/forest_fire_risk/tabular.py`.
+
+    python -m forest_fire_risk.tabular            # tune + train + evaluate, ~2 min -> reports/tabular/
+    python -m forest_fire_risk.side_experiments   # optional extras, not used by fusion
+    python -m forest_fire_risk.tabular_figures    # figures -> reports/tabular/figures/
+
+The 27 fire-day features of the 10,922 samples that have a tile from a scene with ≤ 20 % cloud
+(the cloud rule is expected to match the CNN; not confirmed yet, it's `MAX_CLOUD` in `tabular.py`).
+
+| Years | Role | Used to |
+|---|---|---|
+| 2017–2019 | train | fit; leave-one-year-out cross-validation (k = 3) picks hyperparameters and the threshold |
+| 2020 | fusion only | the final LR / RF only *predict* it; never used to fit or tune them |
+| 2021–2022 | test | scored once, at the end |
+
+Test 2021–22: random forest AUPRC 0.829 (ROC-AUC 0.899), logistic regression 0.710 (0.819), month-only
+baseline 0.554. Season-matched (the "fire season" shortcut removed): RF 0.731, LR 0.604, chance 0.351.
+`reports/tabular/predictions.csv` holds the 2020 and 2021–22 probabilities per `sample_id` for fusion.
+
 ## EDA
 `notebooks/eda_track_a.ipynb` (source: `notebooks/eda_track_a.py`, converted with jupytext;
 figures in `reports/eda/`). Main findings so far:
@@ -148,10 +177,15 @@ Mesogeos baselines on Track A for reference: LSTM F1 0.79, Transformer F1 0.79 /
         explore_mesogeos.py inspect the raw zarr datacube (optional)
         gee_images.py       fetch Sentinel-2 tiles from Google Earth Engine
         images.py           TileDataset for the CNN branch
+        tabular.py          logistic regression + random forest (main tabular pipeline)
+        side_experiments.py tabular "what if" experiments, not used by fusion
+        tabular_figures.py  figures for reports/tabular/
     app/                    map viewer (index.html + build_data.py), deployed on Vercel
     docs/model_plan.md      modelling strategy: LR baseline -> RF -> CNN -> LR meta-learner fusion
     notebooks/              EDA (jupytext .py + executed .ipynb)
     reports/eda/            EDA figures
+    reports/tabular/        tabular models: written report, metrics, predictions for fusion, figures
+    models/                 fitted models, git-ignored (re-created by the pipelines)
     tests/                  pytest sanity checks (synthetic data, no download needed)
     data/                   raw downloads, git-ignored
 
@@ -161,10 +195,14 @@ Mesogeos baselines on Track A for reference: LSTM F1 0.79, Transformer F1 0.79 /
 - [x] Sentinel-2 tiles for all 2017–2022 samples via Earth Engine (`gee_images.py`), 11,579 tiles
 - [x] Image loaders (`with_images`, `load_tile`, `load_tiles`, `TileDataset`)
 - [x] Map viewer with walkthrough, gallery, CSV export and code snippets, deployed on Vercel
+- [x] Tabular models: logistic regression baseline and random forest on the tabular + Sentinel-2
+      intersection, leave-one-year-out CV, season-matched evaluation, report (`reports/tabular/`)
 
 ## Next steps
 The plan and reasoning are in `docs/model_plan.md`; build order:
-1. Tabular baseline (logistic regression, gradient boosting) on `to_tabular` with the year split.
+1. ~~Tabular baseline and random forest~~ done, see `reports/tabular/README.md`.
 2. LSTM on `to_sequences`, compare with the Mesogeos numbers above.
-3. CNN on the tiles with `TileDataset`; decide what to do with the 644 cloudy tiles (drop or re-fetch).
-4. Fusion model and final comparison on the 2017–2022 test years.
+3. CNN on the tiles with `TileDataset`, on the same samples and years as the tabular models. Confirm
+   the cloudy-tile rule (the index has 657 tiles above 20 % cloud; the tabular models drop them).
+4. Fusion model on `reports/tabular/predictions.csv` (`p_rf`) + CNN predictions: train on 2020,
+   evaluate on 2021–22, standard and season-matched.

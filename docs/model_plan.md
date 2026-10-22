@@ -15,14 +15,25 @@ IMAGE branch     Sentinel-2 tiles                     --> CNN                   
 FUSION           [RF prob, CNN prob] --> Logistic Regression (meta-learner)     --> final prediction
 ```
 
-Everything is evaluated on the **Mesogeos year split** (train <=2019 / val 2020 /
-test 2021-22) via `split_by_year`, so all branches are judged on the same samples.
+Every model uses the **same samples**: the 2017-2022 samples that have a Sentinel-2 tile
+(scene cloud <= 20 %), so tabular, image and fusion models are compared on identical data.
+Years are used via `split_by_year`:
+
+| Years | Role | Used to |
+|---|---|---|
+| 2017-2019 | train | fit; leave-one-year-out cross-validation (k = 3) picks hyperparameters and thresholds |
+| 2020 | fusion only | base models only *predict* it; the meta-learner trains on those predictions. Never used to fit or tune a base model |
+| 2021-2022 | test | scored once, at the end |
+
 We never split randomly by row: the 30 rows of a sample are near-duplicates and would
-leak between train and test.
+leak between train and test. Cross-validation folds are whole years for the same reason
+(neighbouring cells of one fire are near-duplicates too).
 
 ---
 
 ## Step 1 - Logistic Regression (tabular baseline)
+
+**Status: done.** Results and figures in `reports/tabular/README.md` (test AUPRC 0.710).
 
 **What:** Linear model on the `to_tabular` feature matrix. Preprocessing: impute NaNs,
 standardize features, apply **L2 regularization**.
@@ -46,6 +57,8 @@ finding: it motivates the nonlinear model.
 ---
 
 ## Step 2 - Random Forest (tabular, nonlinear)
+
+**Status: done.** Test AUPRC 0.829, i.e. it beats LR as expected; see `reports/tabular/README.md`.
 
 **What:** Tree ensemble on the **same** features and the **same** year split.
 Preprocessing: impute NaNs only (no scaling needed).
@@ -168,7 +181,8 @@ on predictions over the base models' own training data silently inflates the sco
 
 ## Build order
 
-1. LR baseline (tabular).
+1. LR baseline (tabular). **Done.**
 2. RF (tabular), compare on F1 / AUPRC / ROC-AUC — confirm RF wins before investing further.
+   **Done: RF wins** (AUPRC 0.829 vs 0.710; season-matched 0.731 vs 0.604).
 3. GEE Sentinel-2 puller + CNN (image).
 4. LR meta-learner combining RF + CNN probabilities (fusion), with out-of-fold predictions.
