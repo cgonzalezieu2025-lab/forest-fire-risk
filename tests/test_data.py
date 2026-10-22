@@ -57,3 +57,15 @@ def test_load_tiles(tmp_path):
     Image.new("RGB", (256, 256), (10, 20, 30)).save(tmp_path / "pos_0.png")
     tiles = data.load_tiles(pd.DataFrame({"sample_id": ["pos_0", "pos_0"]}), tmp_path)
     assert tiles.shape == (2, 256, 256, 3) and tiles.dtype == np.uint8 and tiles[0, 0, 0].tolist() == [10, 20, 30]
+
+
+def test_tile_index_falls_back_to_map_copy(tmp_path, monkeypatch):
+    fallback = tmp_path / "tile_index_from_map.csv"
+    pd.DataFrame({"sample_id": ["pos_0", "neg_0"], "status": ["ok", "missing"],
+                  "cloud": [3.0, None], "date": ["2021-07-01", None]}).to_csv(fallback, index=False)
+    monkeypatch.setattr(data, "MAP_INDEX", fallback)
+    images = tmp_path / "images"                                  # no index.csv here -> fallback
+    images.mkdir()
+    assert data.tile_index(images).sample_id.tolist() == ["pos_0", "neg_0"]
+    meta = pd.DataFrame({"sample_id": ["pos_0", "neg_0"], "label": [1, 0]})
+    assert data.with_images(meta, images).sample_id.tolist() == ["pos_0"]

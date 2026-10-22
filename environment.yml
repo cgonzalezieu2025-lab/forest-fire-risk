@@ -12,6 +12,7 @@ dependencies:
   - scikit-learn
   - matplotlib
   - pytest
+  - ipykernel
   - pip:
       - earthengine-api
       - gdown
