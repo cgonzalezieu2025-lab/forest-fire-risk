@@ -33,7 +33,7 @@ python -m forest_fire_risk.cnn_figures      # figures + by_cloud.csv (needs repo
 Code: `src/forest_fire_risk/cnn.py`, `cnn_figures.py`; test in `tests/test_cnn.py`. The tiles are
 cached once as `data/tiles.npy` (2.3 GB, git-ignored); the weights go to `models/cnn/`
 (git-ignored). Training is seeded, but GPU convolutions are not bit-reproducible, so a re-run
-gives slightly different numbers (expect ±0.01 AUPRC).
+gives different numbers: a verification re-run scored test AUPRC 0.725 (season-matched 0.692) against the 0.749 reported here, so expect ±0.02-0.03 AUPRC between runs. The ranking (above logistic regression, below the random forest) held in both runs.
 
 ## 2. Data, years and what the model sees
 
