@@ -28,7 +28,7 @@ Contents:
 [10. Calibration](#10-calibration-can-the-probabilities-be-trusted) ·
 [11. Side experiments](#11-side-experiments-not-part-of-the-main-pipeline) ·
 [12. Hand-off to fusion](#12-hand-off-to-the-fusion-model) ·
-[13. Limitations and open decisions](#13-limitations-and-open-decisions)
+[13. Limitations](#13-limitations)
 
 ---
 
@@ -67,10 +67,10 @@ that 2006-2016 are not used for training; side experiment A (section 11) shows t
 nothing measurable.
 
 **Cloudy tiles: dropped above 20 % scene cloud.** Of the 11,579 tiles, 657 come from scenes with
-more than 20 % cloud. We drop those samples here because we expect the CNN to drop them;
-**this is not confirmed with the image branch yet.** It is a single setting
+more than 20 % cloud. We drop those samples, and the CNN drops the same 657 tiles (agreed with the
+image branch), so all models use exactly the same samples. It is a single setting
 (`MAX_CLOUD` in `tabular.py`; `None` keeps all tiles) and re-running takes about two minutes.
-Note: the README and proposal say 644 cloudy tiles; the tile index actually has 657 above 20 %.
+Note: the proposal says 644 cloudy tiles; the tile index actually has 657 above 20 %.
 
 **Which samples have a tile** is read from `data/images/index.csv` when it exists. Without the
 images, it falls back to `data/tile_index_from_map.csv`, built automatically from the deployed
@@ -253,7 +253,8 @@ raises far fewer false alarms (494 vs 772 non-fires flagged as fire).
 > scored both ways.
 
 **Step 1: the dataset has a quirk.** A real fire happens when it happens, and that is mostly in
-summer. The no-fire samples were picked by the dataset's creators fairly evenly across the year.
+summer. The no-fire samples were picked by the dataset's creators fairly evenly across March-October,
+with a few in every other month.
 In the test years 2021-22:
 
 | | July-August | April |
@@ -431,13 +432,14 @@ inputs, so mild mis-calibration is acceptable.
 - Report fusion with the same metrics, both standard and season-matched (`season_weights` in
   `tabular.py`). There is no separate "season-matched model": it is the same `p_rf`, scored two ways.
 
-## 13. Limitations and open decisions
+## 13. Limitations
 
-- **Open: cloudy-tile rule.** Currently tiles above 20 % scene cloud are dropped, to match what we
-  expect the CNN to do. To be confirmed with the image branch. **Caveat for the CNN:** the
-  dropped cloudy tiles are 571 non-fires and only 86 fires (fire days are cloud-free by
-  construction, see the EDA), so cloud cover itself is a hint about the label. The CNN could
-  learn "clouds → no fire" from tiles that are partly cloudy.
+- **Cloudy tiles (decided).** Tiles above 20 % scene cloud are dropped by both the tabular
+  models and the CNN. The reason: the cloudy tiles are 571 non-fires and only 86 fires (fire
+  days are cloud-free by construction, see the EDA), so cloud cover itself is a hint about the
+  label and a CNN could learn "clouds → no fire". The image branch checked that, among the
+  remaining tiles, the CNN still separates fires from non-fires within each cloud level
+  (ROC-AUC 0.78-0.85 per level; details in `reports/cnn/README.md`).
 - **Same-day danger, not a forecast.** The features include the fire day itself, so the models
   estimate danger on a given day rather than predicting fires days ahead.
 - **Not every split is by location.** Years are separated, but the same 1 km cells can appear in
