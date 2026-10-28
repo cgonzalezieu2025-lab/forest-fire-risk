@@ -105,6 +105,9 @@ to the models.
 
 ## Step 4 - CNN (image branch)
 
+**Status: first version done.** ResNet-18 fine-tuned on the RGB tiles, test AUPRC 0.749
+(season-matched 0.705): above LR, below RF. See `reports/cnn/README.md`.
+
 **What:** CNN on Sentinel-2 RGB tiles pulled from Google Earth Engine for the
 2017-2022 samples (~3,968 fires / 8,025 non-fires), same year split.
 
@@ -184,5 +187,5 @@ on predictions over the base models' own training data silently inflates the sco
 1. LR baseline (tabular). **Done.**
 2. RF (tabular), compare on F1 / AUPRC / ROC-AUC — confirm RF wins before investing further.
    **Done: RF wins** (AUPRC 0.829 vs 0.710; season-matched 0.731 vs 0.604).
-3. GEE Sentinel-2 puller + CNN (image).
+3. GEE Sentinel-2 puller + CNN (image). **Done** (first version, AUPRC 0.749).
 4. LR meta-learner combining RF + CNN probabilities (fusion), with out-of-fold predictions.
