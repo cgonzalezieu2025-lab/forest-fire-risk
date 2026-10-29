@@ -209,7 +209,7 @@ Mesogeos baselines on Track A for reference: LSTM F1 0.79, Transformer F1 0.79 /
         fusion_figures.py   figures for reports/fusion/
     app/                    map viewer (index.html + build_data.py), deployed on Vercel
     docs/model_plan.md      modelling strategy: LR baseline -> RF -> CNN -> LR meta-learner fusion
-    notebooks/              EDA (jupytext .py + executed .ipynb)
+    notebooks/              EDA, tabular and fusion notebooks (jupytext .py + executed .ipynb)
     reports/eda/            EDA figures
     reports/tabular/        tabular models: written report, metrics, predictions for fusion, figures
     reports/cnn/            CNN: written report, metrics, predictions for fusion, figures

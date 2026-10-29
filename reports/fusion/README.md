@@ -32,6 +32,8 @@ python -m forest_fire_risk.fusion_figures   # figures
 ```
 
 Code: `src/forest_fire_risk/fusion.py`, `fusion_figures.py`; tests in `tests/test_fusion.py`.
+Interactive companion: `notebooks/fusion.ipynb` (source `notebooks/fusion.py`, jupytext); every
+cell runs without the raw data, tiles or GPU.
 No raw data, tiles or GPU are needed: fusion only reads the two committed prediction files.
 
 ## 2. Data and years
@@ -132,6 +134,10 @@ Fusion is ahead in 100 % of the resamples in all four cases.
   vegetation, terrain), which is the part of fire danger the season does not explain.
 - **The random forest still carries most of the weight** (2.13 vs 1.26), as expected: it is the
   stronger single model and it sees the weather of the day, which the image cannot.
+- **The image works mainly as a veto on false alarms.** At their own thresholds, fusion catches
+  about as many test fires as the random forest (1,111 vs 1,106) but raises 75 fewer false alarms
+  (419 vs 494). Of the 215 samples the random forest flags and fusion clears, 70 % are correctly
+  cleared; the 145 opposite switches are right about half the time (`notebooks/fusion.ipynb`, section 6).
 - **Learning the weights is worth it, but most of the gain is in combining at all.** The plain
   average gets 0.846, about half-way from the random forest to fusion; the learned weights and
   the logit scale add another 0.018.
