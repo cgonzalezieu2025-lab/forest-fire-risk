@@ -118,6 +118,9 @@ exactly what convolutions are built for; a tabular model can't use raw pixels.
 
 ## Step 5 - Fusion (meta-learner)
 
+**Status: done.** Logit inputs, fitted on 2020, test AUPRC 0.864 (season-matched 0.793): above
+both RF (0.829 / 0.731) and CNN (0.749 / 0.705). See `reports/fusion/README.md`.
+
 The tabular and image branches each output a **single fire probability** per sample.
 Fusion learns how to combine those two probabilities into one final prediction, using a
 small **Logistic Regression meta-learner**.
@@ -188,4 +191,4 @@ on predictions over the base models' own training data silently inflates the sco
 2. RF (tabular), compare on F1 / AUPRC / ROC-AUC — confirm RF wins before investing further.
    **Done: RF wins** (AUPRC 0.829 vs 0.710; season-matched 0.731 vs 0.604).
 3. GEE Sentinel-2 puller + CNN (image). **Done** (first version, AUPRC 0.749).
-4. LR meta-learner combining RF + CNN probabilities (fusion), with out-of-fold predictions.
+4. LR meta-learner combining RF + CNN probabilities (fusion), with out-of-fold predictions. **Done** (AUPRC 0.864).
