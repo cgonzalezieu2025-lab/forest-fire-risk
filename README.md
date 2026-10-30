@@ -27,8 +27,8 @@ its dot on the map are the same sample. One year-based split (`split_by_year`) i
 branch, so the models are compared on exactly the same test samples.
 
 Status (Oct 2026): data loaders, EDA, satellite tiles for all 2017–2022 samples, the map viewer and
-the tabular models (logistic regression, random forest; see `reports/tabular/README.md`) and a first CNN
-(`reports/cnn/README.md`) are done. Fusion is next (see `docs/model_plan.md`).
+the tabular models (logistic regression, random forest; see `reports/tabular/README.md`), a first CNN
+(`reports/cnn/README.md`) and the fusion model (`reports/fusion/README.md`) are done (see `docs/model_plan.md`).
 
 ## Setup
     conda env create -f environment.yml
@@ -162,6 +162,17 @@ years as the tabular models (2017–2019 train with a 15 % hold-out for early st
 2021–22 test). Test 2021–22: AUPRC 0.749 (ROC-AUC 0.843); season-matched 0.705. Between the logistic
 regression and the random forest. `reports/cnn/predictions.csv` holds `p_cnn` for 2020 and 2021–22.
 
+## Fusion (random forest + CNN)
+Full write-up with figures: **`reports/fusion/README.md`**. Code: `src/forest_fire_risk/fusion.py`.
+
+    python -m forest_fire_risk.fusion             # ~10 s, reads the two predictions.csv files -> reports/fusion/
+    python -m forest_fire_risk.fusion_figures     # figures -> reports/fusion/figures/
+
+Logistic-regression meta-learner on the logits of `p_rf` and `p_cnn`, fitted on 2020 (where neither base
+model trained), settings and threshold from 5-fold CV inside 2020. Test 2021–22: AUPRC 0.864 (ROC-AUC 0.917),
+against 0.829 for the random forest and 0.749 for the CNN; season-matched 0.793 against 0.731. Both gains over
+the random forest are clearly above zero in a paired bootstrap (+0.035 and +0.062).
+
 ## EDA
 `notebooks/eda_track_a.ipynb` (source: `notebooks/eda_track_a.py`, converted with jupytext;
 figures in `reports/eda/`). Main findings so far:
@@ -194,12 +205,15 @@ Mesogeos baselines on Track A for reference: LSTM F1 0.79, Transformer F1 0.79 /
         tabular_figures.py  figures for reports/tabular/
         cnn.py              ResNet-18 on the Sentinel-2 tiles (image branch)
         cnn_figures.py      figures and cloud-cover check for reports/cnn/
+        fusion.py           logistic-regression meta-learner on p_rf + p_cnn (fusion)
+        fusion_figures.py   figures for reports/fusion/
     app/                    map viewer (index.html + build_data.py), deployed on Vercel
     docs/model_plan.md      modelling strategy: LR baseline -> RF -> CNN -> LR meta-learner fusion
-    notebooks/              EDA (jupytext .py + executed .ipynb)
+    notebooks/              EDA, tabular and fusion notebooks (jupytext .py + executed .ipynb)
     reports/eda/            EDA figures
     reports/tabular/        tabular models: written report, metrics, predictions for fusion, figures
     reports/cnn/            CNN: written report, metrics, predictions for fusion, figures
+    reports/fusion/         fusion: written report, metrics, meta-learner weights, figures
     models/                 fitted models, git-ignored (re-created by the pipelines)
     tests/                  pytest sanity checks (synthetic data, no download needed)
     data/                   raw downloads, git-ignored
@@ -213,6 +227,7 @@ Mesogeos baselines on Track A for reference: LSTM F1 0.79, Transformer F1 0.79 /
 - [x] Tabular models: logistic regression baseline and random forest on the tabular + Sentinel-2
       intersection, leave-one-year-out CV, season-matched evaluation, report (`reports/tabular/`)
 - [x] CNN (ResNet-18) on the tiles, same samples and years, cloudy-tile rule confirmed, report (`reports/cnn/`)
+- [x] Fusion: LR meta-learner on RF + CNN, trained on 2020, test AUPRC 0.864, report (`reports/fusion/`)
 
 ## Next steps
 The plan and reasoning are in `docs/model_plan.md`; build order:
@@ -220,5 +235,5 @@ The plan and reasoning are in `docs/model_plan.md`; build order:
 2. LSTM on `to_sequences`, compare with the Mesogeos numbers above.
 3. ~~CNN on the tiles~~ first version done, see `reports/cnn/README.md`. Cloudy-tile rule confirmed:
    both branches drop the 657 tiles above 20 % scene cloud. Still to try: less overfitting, year-wise CV.
-4. Fusion model on `reports/tabular/predictions.csv` (`p_rf`) + `reports/cnn/predictions.csv` (`p_cnn`): train on 2020,
-   evaluate on 2021–22, standard and season-matched.
+4. ~~Fusion model~~ done, see `reports/fusion/README.md`. If the CNN is improved, re-run
+   `python -m forest_fire_risk.fusion` (10 s) to update it.
