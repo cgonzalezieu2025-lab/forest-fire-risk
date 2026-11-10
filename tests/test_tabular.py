@@ -49,3 +49,16 @@ def test_fit_uses_leave_one_year_out(make, grid):
     assert len(out["cv_results"].filter(like="split").filter(like="test_score").columns) == 3   # one fold per year
     assert len(out["oof"]) == len(df) and 0 < out["threshold"] < 1
     assert out["cv_auprc"] > df.label.mean()                       # learns the t2m signal
+
+
+def test_shipped_predictions_still_fit_fusion():
+    """The committed tabular predictions keep the format fusion reads and the exact samples
+    of the CNN file, so fusion only needs a re-run when the tabular models change."""
+    from forest_fire_risk import fusion
+    if not (fusion.TABULAR_PREDS.exists() and fusion.CNN_PREDS.exists()):
+        pytest.skip("predictions.csv not generated")
+    tab = pd.read_csv(fusion.TABULAR_PREDS)
+    assert list(tab.columns) == ["sample_id", "label", "time", "split", "p_logreg", "p_rf"]
+    assert set(tab.split) == {"val", "test"}
+    df = fusion.load_predictions()      # raises if samples, labels, dates or splits disagree
+    assert len(df) == len(tab)
