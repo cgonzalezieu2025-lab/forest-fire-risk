@@ -6,8 +6,8 @@ samples, years and metrics as the tabular models (`reports/tabular/README.md`), 
 branches are directly comparable and fusion can join them by `sample_id`.
 
 > **In one paragraph.** On the 2021-22 test years the CNN reaches **AUPRC 0.749** (ROC-AUC
-> 0.843, F1 0.695): clearly better than logistic regression on the tabular features (0.710) and
-> clearly below the random forest (0.829). Season-matched it keeps **AUPRC 0.705** (chance
+> 0.843, F1 0.695): clearly better than logistic regression on the tabular features (0.695) and
+> clearly below the random forest (0.811). Season-matched it keeps **AUPRC 0.705** (chance
 > 0.351), and it loses less to season matching than the random forest does (-0.04 vs -0.10),
 > so the image carries fire-danger signal that is not just "it looks like summer". The model
 > overfits quickly (training loss 0.09 after 18 epochs while the hold-out score plateaus around
@@ -67,22 +67,22 @@ meaningful: any epoch after 5 gives roughly the same model.
 | Model | AUPRC | ROC-AUC | F1 | Precision | Recall | AUPRC season-matched | ROC-AUC season-matched |
 |---|---|---|---|---|---|---|---|
 | **CNN (ResNet-18)** | **0.749** | **0.843** | **0.695** | 0.656 | 0.738 | **0.705** | 0.810 |
-| Random forest (tabular) | 0.829 | 0.899 | 0.758 | 0.691 | 0.839 | 0.731 | 0.831 |
-| Logistic regression (tabular) | 0.710 | 0.819 | 0.673 | 0.579 | 0.804 | 0.604 | 0.736 |
+| Random forest (tabular) | 0.811 | 0.888 | 0.747 | 0.707 | 0.791 | 0.707 | 0.815 |
+| Logistic regression (tabular) | 0.695 | 0.807 | 0.675 | 0.600 | 0.773 | 0.583 | 0.717 |
 | Month only (baseline) | 0.554 | 0.757 | 0.644 | 0.581 | 0.723 | 0.351 (chance) | 0.500 (chance) |
 
 ![ROC and precision-recall curves](figures/02_roc_pr_curves.png)
 
 **Figure 2.** ROC (left) and precision-recall (right) curves on the test set. The random forest
-is above the CNN at every operating point; the CNN is above the month-only baseline everywhere.
-At 80 % recall, 62 % of the CNN's alarms are real against 71 % for the random forest.
+is above the CNN at almost every operating point (they touch only at the far right of the ROC plot); the CNN is above the month-only baseline everywhere.
+At 80 % recall, 60 % of the CNN's alarms are real against 70 % for the random forest.
 
 **Reading the numbers.**
-- The image alone gets a good part of the way: AUPRC 0.749 against 0.829 for 27 numeric
+- The image alone gets a good part of the way: AUPRC 0.749 against 0.811 for 27 numeric
   drivers, and above the linear tabular model. Fuel type, vegetation density and terrain are
-  visible in the tile; the weather of the day is not, which is a plausible reason for the gap.
+  visible in the tile; the weather of the day before the fire is not, which is a plausible reason for the gap.
 - **Season matching costs the CNN less** (0.749 → 0.705) than the random forest
-  (0.829 → 0.731) or logistic regression (0.710 → 0.604). The tabular models see temperature
+  (0.811 → 0.707) or logistic regression (0.695 → 0.583). The tabular models see temperature
   and radiation, which reveal the month directly; the image reveals it only through vegetation
   colour. So a larger share of the CNN's score is "which place burns", not "which time of year".
   That is the kind of complementary information fusion is meant to exploit.
@@ -108,15 +108,15 @@ test set (`by_cloud.csv`):
 
 | Scene cloud | n | Share of fires | CNN mean p | RF mean p | CNN ROC-AUC | RF ROC-AUC | CNN AUPRC | RF AUPRC |
 |---|---|---|---|---|---|---|---|---|
-| 0-1 % | 2,572 | 0.41 | 0.41 | 0.40 | 0.845 | 0.890 | 0.795 | 0.844 |
-| 1-5 % | 661 | 0.29 | 0.35 | 0.31 | 0.840 | 0.917 | 0.694 | 0.836 |
-| 5-20 % | 525 | 0.15 | 0.22 | 0.22 | 0.777 | 0.876 | 0.421 | 0.584 |
+| 0-1 % | 2,572 | 0.41 | 0.41 | 0.40 | 0.845 | 0.880 | 0.795 | 0.827 |
+| 1-5 % | 661 | 0.29 | 0.35 | 0.31 | 0.840 | 0.897 | 0.694 | 0.798 |
+| 5-20 % | 525 | 0.15 | 0.22 | 0.22 | 0.777 | 0.855 | 0.421 | 0.592 |
 
 The CNN's average probability falls with cloud cover, but so does the share of fires, and the
 random forest (which never sees the image) shows the same pattern: cloudier scenes are simply
 more often non-fire days. *Within* each bucket the CNN still separates fires from non-fires
 (ROC-AUC 0.78-0.85, far from 0.5), so it is not scoring by cloud alone. It does lose more than
-the random forest on the cloudiest bucket (ROC-AUC 0.78 vs 0.88), as one would expect when part
+the random forest on the cloudiest bucket (ROC-AUC 0.78 vs 0.86), as one would expect when part
 of the tile is hidden. AUPRC is not comparable across buckets because the fire share differs.
 
 ## 6. Hand-off to fusion
