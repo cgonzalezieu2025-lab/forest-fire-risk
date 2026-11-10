@@ -124,9 +124,9 @@ over-trust them. For the same reason the base models are *not* retrained with 20
 k-fold cross-validation, where each fold is one year: train on two years, validate on the third,
 rotate, and average the three validation scores.
 
-- *Why folds by year and not random 5-fold?* Fires come in outbreaks: in 2017-19, 48 % of fires
-  have another fire within 25 km and 3 days (only 6 % of non-fires do), and such neighbouring
-  fires have almost identical weather. A random split would put some fires of an outbreak in
+- *Why folds by year and not random 5-fold?* Fires come in outbreaks: in 2017-19, 46 % of fires
+  have another fire within 25 km and 3 days, while only 5 % of non-fires have another non-fire
+  that close; neighbouring fires have almost identical weather. A random split would put some fires of an outbreak in
   training and others in validation; the model would "recognise" the outbreak and the
   cross-validation scores would be too optimistic. Splitting by year rules that out, and it
   copies the real test (predicting years the model has never seen).

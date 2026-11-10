@@ -30,7 +30,7 @@ Years are used via `split_by_year`:
 
 We never split randomly by row: the 30 rows of a sample are near-duplicates and would
 leak between train and test. Cross-validation folds are whole years because fires come in outbreaks (in 2017-19,
-48 % of fires have another fire within 25 km and 3 days, vs 6 % of non-fires), so a random
+46 % of fires have another fire within 25 km and 3 days, vs 5 % of non-fires with another non-fire), so a random
 split would leak near-identical weather between train and validation.
 
 ---
