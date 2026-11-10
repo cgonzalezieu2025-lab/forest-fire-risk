@@ -4,7 +4,7 @@ Can we tell whether a 1 km patch of the Mediterranean will burn on a given day?
 We predict a binary fire / no-fire label from two kinds of input and compare them:
 
 1. **Tabular drivers** (weather, vegetation, soil, terrain, land cover, human activity) from the
-   [Mesogeos](https://github.com/Orion-AI-Lab/mesogeos) datacube (NeurIPS 2023). Classic ML and a sequence model.
+   [Mesogeos](https://github.com/Orion-AI-Lab/mesogeos) datacube (NeurIPS 2023). Logistic regression and a random forest.
 2. **Satellite images** of the same patch from Sentinel-2, pulled via Google Earth Engine. A CNN.
 
 Then a fused model that uses both. Mesogeos covers 2006–2022 and Sentinel-2 starts in 2017,
@@ -14,7 +14,7 @@ fusion has a tabular and an image prediction for each of them.
 
 ## How it fits together
 
-    Mesogeos Track A (CSV)  ──►  data.py ──► tabular rows / 30-day sequences ──► tabular + LSTM models
+    Mesogeos Track A (CSV)  ──►  data.py ──► tabular rows ──► logistic regression + random forest
             │ sample_id, lon/lat, date                                                  │
             ▼                                                                           ▼
     gee_images.py ──► Google Earth Engine ──► data/images/<sample_id>.png ──► CNN ──► fusion model
@@ -68,7 +68,7 @@ disguise. The loader exposes `DYNAMIC` / `STATIC` lists that exclude them. Never
 
     df = load_track_a()                            # long: one row per (sample, day), 777k rows
     tab = to_tabular(df, window=7)                 # one row per sample -> sklearn / boosting
-    X_dyn, X_static, y, meta = to_sequences(df)    # [N,30,13], [N,14], [N] -> LSTM / torch
+    X_dyn, X_static, y, meta = to_sequences(df)    # [N,30,13], [N,14], [N]; includes the fire day, no model uses it
     split = split_by_year(tab)                     # 'train' <=2019, 'val' 2020, 'test' 2021-22
 
 `split_by_year` is the one split everybody uses, so the tabular and image branches are evaluated
@@ -237,10 +237,13 @@ train on 2006–2019 and test on all 2021–22 samples, so they are not directly
 - [x] Tabular inputs switched to day t-1 (no fire-day weather), tabular + fusion re-run
 
 ## Next steps
-The plan and reasoning are in `docs/model_plan.md`; build order:
-1. ~~Tabular baseline and random forest~~ done, see `reports/tabular/README.md`.
-2. LSTM on `to_sequences`, compare with the Mesogeos numbers above.
-3. ~~CNN on the tiles~~ first version done, see `reports/cnn/README.md`. Cloudy-tile rule confirmed:
-   both branches drop the 657 tiles above 20 % scene cloud. Still to try: less overfitting, year-wise CV.
-4. ~~Fusion model~~ done, see `reports/fusion/README.md`. If the CNN or the tabular models change, re-run
-   `python -m forest_fire_risk.fusion` (10 s) to update it.
+The plan and reasoning are in `docs/model_plan.md`. What is left before the sentence outline (15 Nov)
+and the final report (25 Nov), as planned in the progress report:
+1. Tabular models: done, including the switch to day t-1 inputs (`reports/tabular/README.md`).
+2. CNN: retrain several times to measure run-to-run variance, reduce overfitting (e.g. freeze the
+   early layers or add near-infrared bands), and hold out 2019 instead of a random 15 % for early
+   stopping and the threshold (`reports/cnn/README.md`).
+3. Fusion: refit on each CNN run (the day t-1 refit is done), add per-year scores, and look at its
+   errors on the map (`reports/fusion/README.md`). Whenever the CNN or the tabular models change,
+   re-run `python -m forest_fire_risk.fusion` (10 s).
+4. Final report, written together.
