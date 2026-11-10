@@ -27,8 +27,11 @@ def test_shapes_and_nan_fill(tmp_path):
     assert df.sample_id.nunique() == 3 and len(df) == 90
 
     tab = data.to_tabular(df, window=7)
-    assert len(tab) == 3 and tab["t2m"].tolist() == [29.0] * 3
-    assert tab["t2m_mean7"].iloc[0] == pytest.approx(np.mean(range(23, 30)))
+    # fake value on day t = t, so 28.0 means day t-1 was used, never the fire day (29)
+    assert len(tab) == 3 and tab["t2m"].tolist() == [28.0] * 3
+    assert tab["t2m_mean7"].iloc[0] == pytest.approx(np.mean(range(22, 29)))
+    # date, label and place still come from the fire day, so splits and joins don't move
+    assert (tab.time == pd.Timestamp("2021-07-30")).all()
 
     X_dyn, X_static, y, meta = data.to_sequences(df)
     assert X_dyn.shape == (3, 30, len(data.DYNAMIC)) and X_static.shape == (3, len(data.STATIC))
