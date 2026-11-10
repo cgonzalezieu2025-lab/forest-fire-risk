@@ -26,9 +26,11 @@ Everything is keyed by `sample_id`, so a tabular row, its 30-day sequence, its s
 its dot on the map are the same sample. One year-based split (`split_by_year`) is used by every
 branch, so the models are compared on exactly the same test samples.
 
-Status (Oct 2026): data loaders, EDA, satellite tiles for all 2017–2022 samples, the map viewer and
+Status (Nov 2026): data loaders, EDA, satellite tiles for all 2017–2022 samples, the map viewer and
 the tabular models (logistic regression, random forest; see `reports/tabular/README.md`), a first CNN
 (`reports/cnn/README.md`) and the fusion model (`reports/fusion/README.md`) are done (see `docs/model_plan.md`).
+Since the progress report the tabular models use the weather of the day before the fire (t-1)
+instead of the fire day itself; all tabular and fusion numbers below are the t-1 ones.
 
 ## Setup
     conda env create -f environment.yml
@@ -138,7 +140,8 @@ Full write-up with all figures: **`reports/tabular/README.md`**. Code: `src/fore
     python -m forest_fire_risk.side_experiments   # optional extras, not used by fusion
     python -m forest_fire_risk.tabular_figures    # figures -> reports/tabular/figures/
 
-The 27 fire-day features of the 10,922 samples that have a tile from a scene with ≤ 20 % cloud
+27 features (13 dynamic ones from day t-1, the day before the fire, never the fire day; 14 static)
+of the 10,922 samples that have a tile from a scene with ≤ 20 % cloud
 (the same cloud rule as the CNN, agreed with the image branch; it's `MAX_CLOUD` in `tabular.py`).
 
 | Years | Role | Used to |
@@ -147,8 +150,8 @@ The 27 fire-day features of the 10,922 samples that have a tile from a scene wit
 | 2020 | fusion only | the final LR / RF only *predict* it; never used to fit or tune them |
 | 2021–2022 | test | scored once, at the end |
 
-Test 2021–22: random forest AUPRC 0.829 (ROC-AUC 0.899), logistic regression 0.710 (0.819), month-only
-baseline 0.554. Season-matched (the "fire season" shortcut removed): RF 0.731, LR 0.604, chance 0.351.
+Test 2021–22: random forest AUPRC 0.811 (ROC-AUC 0.888), logistic regression 0.695 (0.807), month-only
+baseline 0.554. Season-matched (the "fire season" shortcut removed): RF 0.707, LR 0.583, chance 0.351.
 `reports/tabular/predictions.csv` holds the 2020 and 2021–22 probabilities per `sample_id` for fusion.
 
 ## Image model (CNN)
@@ -169,9 +172,9 @@ Full write-up with figures: **`reports/fusion/README.md`**. Code: `src/forest_fi
     python -m forest_fire_risk.fusion_figures     # figures -> reports/fusion/figures/
 
 Logistic-regression meta-learner on the logits of `p_rf` and `p_cnn`, fitted on 2020 (where neither base
-model trained), settings and threshold from 5-fold CV inside 2020. Test 2021–22: AUPRC 0.864 (ROC-AUC 0.917),
-against 0.829 for the random forest and 0.749 for the CNN; season-matched 0.793 against 0.731. Both gains over
-the random forest are clearly above zero in a paired bootstrap (+0.035 and +0.062).
+model trained), settings and threshold from 5-fold CV inside 2020. Test 2021–22: AUPRC 0.848 (ROC-AUC 0.907),
+against 0.811 for the random forest and 0.749 for the CNN; season-matched 0.779 against 0.707. Both gains over
+the random forest are clearly above zero in a paired bootstrap (+0.037 and +0.072).
 
 ## EDA
 `notebooks/eda_track_a.ipynb` (source: `notebooks/eda_track_a.py`, converted with jupytext;
@@ -183,7 +186,8 @@ figures in `reports/eda/`). Main findings so far:
 - Negatives are spread fairly evenly over Mar–Oct (with a few in every month) while fires peak in
   Jul–Aug. The sampling is not
   season-matched, so a model can score well just by learning "hot month". Keep this in mind
-  when reading metrics; resampling negatives to the fire-month distribution is an option.
+  when reading metrics; every model is also scored season-matched (test negatives re-weighted to
+  the fires' month mix, see `reports/tabular/README.md` section 7).
 - MODIS land-surface temperature is missing far more often on no-fire days (fire days are
   cloud-free by construction). Impute before training so the model does not learn the gap itself.
 - Strong correlations inside the temperature family (`t2m`, `lst_*`, `d2m`), `sp` with `dem`,
@@ -191,7 +195,9 @@ figures in `reports/eda/`). Main findings so far:
 - Fire size is heavy-tailed (median ~150 ha, max ~108k ha). Italy has the most fire samples.
 - `slope` values sit in a narrow 1.44–1.57 band for nearly all cells and look mis-scaled.
 
-Mesogeos baselines on Track A for reference: LSTM F1 0.79, Transformer F1 0.79 / AUPRC 0.87.
+Mesogeos baselines on Track A for reference (Kondylatos et al. 2023, Table 1): LSTM F1 0.79 / AUPRC 0.853,
+Transformer F1 0.78 / AUPRC 0.856, GTN F1 0.79 / AUPRC 0.858. They use the 30 days before the fire,
+train on 2006–2019 and test on all 2021–22 samples, so they are not directly comparable to ours.
 
 ## Repo layout
     src/forest_fire_risk/
@@ -227,7 +233,8 @@ Mesogeos baselines on Track A for reference: LSTM F1 0.79, Transformer F1 0.79 /
 - [x] Tabular models: logistic regression baseline and random forest on the tabular + Sentinel-2
       intersection, leave-one-year-out CV, season-matched evaluation, report (`reports/tabular/`)
 - [x] CNN (ResNet-18) on the tiles, same samples and years, cloudy-tile rule confirmed, report (`reports/cnn/`)
-- [x] Fusion: LR meta-learner on RF + CNN, trained on 2020, test AUPRC 0.864, report (`reports/fusion/`)
+- [x] Fusion: LR meta-learner on RF + CNN, trained on 2020, test AUPRC 0.848, report (`reports/fusion/`)
+- [x] Tabular inputs switched to day t-1 (no fire-day weather), tabular + fusion re-run
 
 ## Next steps
 The plan and reasoning are in `docs/model_plan.md`; build order:
@@ -235,5 +242,5 @@ The plan and reasoning are in `docs/model_plan.md`; build order:
 2. LSTM on `to_sequences`, compare with the Mesogeos numbers above.
 3. ~~CNN on the tiles~~ first version done, see `reports/cnn/README.md`. Cloudy-tile rule confirmed:
    both branches drop the 657 tiles above 20 % scene cloud. Still to try: less overfitting, year-wise CV.
-4. ~~Fusion model~~ done, see `reports/fusion/README.md`. If the CNN is improved, re-run
+4. ~~Fusion model~~ done, see `reports/fusion/README.md`. If the CNN or the tabular models change, re-run
    `python -m forest_fire_risk.fusion` (10 s) to update it.
