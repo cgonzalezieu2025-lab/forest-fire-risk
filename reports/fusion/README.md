@@ -5,15 +5,19 @@ that combines the random forest's fire probability (tabular drivers) with the CN
 probability (Sentinel-2 tile) into one prediction. Same samples, years and metrics as
 `reports/tabular/README.md` and `reports/cnn/README.md`.
 
-> **In one paragraph.** On the 2021-22 test years fusion reaches **AUPRC 0.848** (ROC-AUC 0.907,
-> F1 0.768), above the random forest alone (0.811) and the CNN alone (0.749). Season-matched it
-> keeps **AUPRC 0.779**, against 0.707 for the random forest: the gain from adding the image
-> **doubles** once the "fire season" shortcut is removed (+0.037 → +0.072). A paired bootstrap
-> over the test samples puts both gains clearly above zero (95 % intervals [+0.023, +0.052] and
-> [+0.048, +0.096]). The meta-learner trusts the random forest more (weight 1.12 against 0.87 per
+> **In one paragraph.** On the 2021-22 test years fusion reaches **AUPRC 0.853** (ROC-AUC 0.911,
+> F1 0.766), above the random forest alone (0.811) and the CNN alone (0.760). Season-matched it
+> keeps **AUPRC 0.782**, against 0.707 for the random forest: the gain from adding the image
+> **nearly doubles** once the "fire season" shortcut is removed (+0.042 → +0.075). A paired bootstrap
+> over the test samples puts both gains clearly above zero (95 % intervals [+0.031, +0.053] and
+> [+0.057, +0.094]). The meta-learner trusts the random forest more (weight 1.79 against 1.25 per
 > standard deviation), but both weights are large, so the image adds information the 27 drivers
-> do not have. A plain average of the two probabilities already gets most of the gain (0.836);
-> learning the weights adds the rest.
+> do not have. A plain average of the two probabilities already gets almost all of the gain
+> (0.849); learning the weights adds little.
+
+> **CNN input since 13 Nov.** `p_cnn` is now the average of five CNN trainings (stopping epoch
+> from a held-out year, see `reports/cnn/README.md`) instead of one training. Fusion was re-run
+> on it; the code is unchanged.
 
 ## 1. Files and how to reproduce
 
@@ -57,8 +61,8 @@ No raw data, tiles or GPU are needed: fusion only reads the two committed predic
 For each sample the base models give two probabilities, $p_{rf}$ and $p_{cnn}$.
 
 1. **Logit (optional).** $\text{logit}(p) = \log\frac{p}{1-p}$ maps $(0,1)$ to $(-\infty,\infty)$.
-   The CNN overfits and outputs very extreme probabilities (as low as $2\cdot10^{-5}$), so on the
-   probability scale its strong opinions get squashed against 0 and 1. Probabilities are clipped
+   The CNN outputs probabilities very close to 0 and 1 (as low as $8\cdot10^{-5}$), so on the
+   probability scale its strong opinions get squashed against the ends. Probabilities are clipped
    to $[10^{-6}, 1-10^{-6}]$ first.
 2. **Standardise** each input with the mean and standard deviation from 2020: $z = (v - \mu)/\sigma$.
 3. **Logistic regression with an L2 penalty:**
@@ -70,12 +74,12 @@ For each sample the base models give two probabilities, $p_{rf}$ and $p_{cnn}$.
 5. **Threshold.** The F1-maximising cut-off on the out-of-fold 2020 predictions (same rule as the
    tabular models). The test set is not used for any choice.
 
-**What was chosen.** Logit inputs win in every setting (CV AUPRC 0.888 against 0.882 for raw
-probabilities). $C$ barely matters from 0.01 upwards (scores within 0.001 of each other), which is
-expected with only two inputs and 2,098 samples. Threshold 0.36. Re-running with four different
-CV seeds gives test AUPRC 0.848-0.850 every time.
+**What was chosen.** Logit inputs win in every setting (CV AUPRC 0.891 against 0.889 for raw
+probabilities). $C$ barely matters (all scores within 0.001 of each other; $C = 0.1$ is best), which is
+expected with only two inputs and 2,098 samples. Threshold 0.50. Re-running with four different
+CV seeds gives test AUPRC 0.852-0.853 every time.
 
-$$p_{final} = \sigma(-0.94 + 1.12\, z_{rf} + 0.87\, z_{cnn})$$
+$$p_{final} = \sigma(-1.27 + 1.79\, z_{rf} + 1.25\, z_{cnn})$$
 
 **Two comparison points:** the random forest and the CNN alone (with the thresholds from their
 own reports, picked on 2017-19), and the **simple average** $(p_{rf} + p_{cnn})/2$: a fusion
@@ -94,10 +98,10 @@ confident CNN can outvote a lukewarm random forest. A vertical line would be "RF
 
 | Model | AUPRC | ROC-AUC | F1 | Precision | Recall | AUPRC season-matched | ROC-AUC season-matched | F1 season-matched |
 |---|---|---|---|---|---|---|---|---|
-| **Fusion (RF + CNN)** | **0.848** | **0.907** | **0.768** | 0.699 | **0.852** | **0.779** | **0.853** | **0.685** |
-| Average of RF and CNN | 0.836 | 0.895 | 0.740 | 0.703 | 0.782 | 0.774 | 0.845 | 0.679 |
-| Random forest | 0.811 | 0.888 | 0.747 | **0.707** | 0.791 | 0.707 | 0.815 | 0.662 |
-| CNN | 0.749 | 0.843 | 0.695 | 0.656 | 0.738 | 0.705 | 0.810 | 0.657 |
+| **Fusion (RF + CNN)** | **0.853** | **0.911** | **0.766** | **0.766** | 0.765 | 0.782 | 0.858 | 0.701 |
+| Average of RF and CNN | 0.849 | 0.906 | 0.764 | 0.751 | 0.776 | **0.786** | **0.859** | **0.705** |
+| Random forest | 0.811 | 0.888 | 0.747 | 0.707 | 0.791 | 0.707 | 0.815 | 0.662 |
+| CNN (average of 5 trainings) | 0.760 | 0.850 | 0.696 | 0.617 | **0.798** | 0.723 | 0.821 | 0.659 |
 
 The test set has 3,758 samples (1,319 fires); random guessing gives AUPRC 0.351.
 
@@ -118,42 +122,44 @@ weights recomputed each time):
 
 | Fusion minus | Standard: mean [95 % interval] | Season-matched: mean [95 % interval] |
 |---|---|---|
-| Random forest | +0.037 [+0.023, +0.052] | +0.072 [+0.048, +0.096] |
-| CNN | +0.098 [+0.083, +0.114] | +0.073 [+0.051, +0.095] |
+| Random forest | +0.042 [+0.031, +0.053] | +0.075 [+0.057, +0.094] |
+| CNN | +0.092 [+0.077, +0.108] | +0.059 [+0.037, +0.080] |
 
 Fusion is ahead in 100 % of the resamples in all four cases.
 
 **Reading the numbers.**
 - **The two branches are complementary.** Their predictions correlate only moderately
-  (0.65 on 2020, 0.60 on test), so they often disagree, and the meta-learner gives both a large
+  (0.67 on 2020, 0.62 on test), so they often disagree, and the meta-learner gives both a large
   weight. Neither model is redundant.
 - **The image matters more once the season shortcut is gone.** Season matching costs the random
-  forest 0.104 AUPRC but fusion only 0.069, and the gain over the random forest grows from +0.037
-  to +0.072. This matches the CNN report: the tabular drivers partly encode "what month is it"
+  forest 0.104 AUPRC but fusion only 0.071, and the gain over the random forest grows from +0.042
+  to +0.075. This matches the CNN report: the tabular drivers partly encode "what month is it"
   (temperature, radiation), while the tile mostly encodes "what kind of place is this" (fuel,
   vegetation, terrain), which is the part of fire danger the season does not explain.
-- **The random forest still carries most of the weight** (1.12 vs 0.87), as expected: it is the
+- **The random forest still carries most of the weight** (1.79 vs 1.25), as expected: it is the
   stronger single model and it sees the weather of the day before, which the image cannot.
-- **Where fusion changes the decision.** At their own thresholds, fusion catches 81 more test
-  fires than the random forest (1,124 vs 1,043) but also raises 51 more false alarms (483 vs 432).
-  Of the 140 samples the random forest flags and fusion clears, 69 % are correctly cleared; the
-  272 opposite switches are right 46 % of the time (`notebooks/fusion.ipynb`, section 6). Part of
-  this is just the thresholds (fusion 0.36, RF 0.41); at equal recall fusion is more precise
+- **Where fusion changes the decision.** At their own thresholds, fusion raises 124 fewer false
+  alarms than the random forest (308 vs 432) and catches 34 fewer test fires (1,009 vs 1,043).
+  Of the 286 samples the random forest flags and fusion clears, 64 % are correctly cleared; the
+  128 opposite switches are right 55 % of the time (`notebooks/fusion.ipynb`, section 6). Part of
+  this is just the thresholds (fusion 0.50, RF 0.41); at equal recall fusion is more precise
   (Figure 2).
-- **Learning the weights is worth it, but most of the gain is in combining at all.** The plain
-  average gets 0.836, about two thirds of the way from the random forest to fusion; the learned
-  weights and the logit scale add another 0.012.
+- **Most of the gain is in combining at all.** The plain average gets 0.849, about nine tenths
+  of the way from the random forest to fusion; the learned weights and the logit scale add
+  another 0.004. Season-matched the plain average is even slightly ahead (0.786 vs 0.782), so
+  the two are level within noise.
 
 ## 5. Limitations
 
-- **The bootstrap covers test-sample noise, not training noise.** The CNN report measured
-  ±0.02-0.03 AUPRC between two CNN trainings. The fusion gain over the random forest (+0.037,
-  season-matched +0.072) is larger than that, but a re-trained CNN would give somewhat different
-  fusion numbers. Re-running the CNN a few times and fusing each run would give the honest spread.
+- **The bootstrap covers test-sample noise, not training noise.** Single CNN trainings differ by
+  about ±0.02 AUPRC (`reports/cnn/README.md`, section 3). The CNN input is now the average of
+  five trainings, which was stable to about ±0.002 between two complete runs, so this matters
+  much less than before. Refitting fusion on each single training
+  (`reports/cnn/predictions_runs.csv`) would show the spread directly; that is still to do.
 - **One year to fit the meta-learner.** 2020 is a single fire season (2,098 samples); the
   meta-learner has only three parameters, so this is enough to fit it, but its weights reflect
   how the base models behaved in that one year.
-- **2020 looks easier than 2021-22** (CV AUPRC 0.888 on 2020 vs 0.848 on test), so the
+- **2020 looks easier than 2021-22** (CV AUPRC 0.891 on 2020 vs 0.853 on test), so the
   threshold picked on 2020 may not be the best one for later years. AUPRC and ROC-AUC do not
   depend on the threshold; F1, precision and recall do.
 - **Late fusion only.** The meta-learner sees two numbers, not the features or pixels. A model
