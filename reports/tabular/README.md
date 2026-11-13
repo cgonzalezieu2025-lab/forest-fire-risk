@@ -1,19 +1,26 @@
 # Tabular models: logistic regression and random forest
 
 Results of the tabular branch of the project: a **logistic regression** baseline and a
-**random forest**, trained on the Mesogeos fire-day features for the samples that also have a
-Sentinel-2 tile. This page explains what was done, why, and how to read every figure, so it can
-be used directly when writing the project report.
+**random forest**, trained on the Mesogeos features of the day before the fire (t-1) for the
+samples that also have a Sentinel-2 tile. This page explains what was done, why, and how to read
+every figure, so it can be used directly when writing the project report.
 
 > **In one paragraph.** On the 2021-22 test years the random forest clearly beats logistic
-> regression: **AUPRC 0.829 vs 0.710**, ROC-AUC 0.899 vs 0.819, F1 0.758 vs 0.673. Part of both
+> regression: **AUPRC 0.811 vs 0.695**, ROC-AUC 0.888 vs 0.807, F1 0.747 vs 0.675. Part of both
 > scores comes from the seasonal sampling of the dataset (fires in summer, non-fires all year):
 > knowing only the month already gives AUPRC 0.554. After removing that effect
-> ("season-matched" evaluation) the random forest still reaches **AUPRC 0.731** and logistic
-> regression **0.604** (chance = 0.351), so both models learn real fire-danger signal beyond the
-> season, and the non-linear model learns more of it. Soil moisture, air temperature, slope,
-> population and night-time land temperature drive the random forest most. Neither more years of
-> data nor 7-day weather averages change the random forest's score (side experiments).
+> ("season-matched" evaluation) the random forest still reaches **AUPRC 0.707** and logistic
+> regression **0.583** (chance = 0.351), so both models learn real fire-danger signal beyond the
+> season, and the non-linear model learns more of it. Soil moisture, air temperature, population,
+> slope and solar radiation drive the random forest most. Neither more years of data nor 7-day
+> weather averages change the random forest's score much (side experiments).
+
+> **Change since the progress report: day t-1 instead of the fire day.** The first version used
+> the weather of the fire day itself (day t). A forecast cannot know that day's weather yet, and
+> Mesogeos only uses the days before the fire, so all weather features now come from day t-1
+> (section 2). Scores drop a little: RF AUPRC 0.829 → 0.811 (season-matched 0.731 → 0.707), LR
+> 0.710 → 0.695 (0.604 → 0.583). The random forest keeps the same settings; logistic regression
+> now picks C = 0.01 instead of 0.1.
 
 Contents:
 [1. Files](#1-files-and-how-to-reproduce) ·
@@ -76,10 +83,16 @@ Note: the proposal says 644 cloudy tiles; the tile index actually has 657 above 
 images, it falls back to `data/tile_index_from_map.csv`, built automatically from the deployed
 map's data, which is generated from the same `index.csv` (same 11,579 / 414 counts).
 
-**Features: the 27 values on the fire day** (day 29 of the 30-day window): 13 dynamic (weather,
-land-surface temperature, vegetation, soil moisture) and 14 static (terrain, land cover,
-population, distance to roads); see Table 1 of the proposal. The label-leaking columns
-`burned_areas`, `ignition_points`, `burned_area_has` are never used.
+**Features: 27 values known the day before the fire.** Each Mesogeos sample is a 30-day window
+whose last day (day 29) is the fire day t. The 13 dynamic features (weather, land-surface
+temperature, vegetation, soil moisture) are taken from **day t-1** (day 28), never from day t:
+the fire day's weather would not be known when making a forecast, and Mesogeos itself only uses
+days t-1 to t-30. The 14 static features (terrain, land cover, population, distance to roads)
+are the same on every day. See Table 1 of the proposal. The sample's date, label and location
+still come from the fire day, so the year split and the join with the CNN are unchanged. The
+label-leaking columns `burned_areas`, `ignition_points`, `burned_area_has` are never used.
+Code: `to_tabular` in `data.py` (`INPUT_DAY = 28`); a test checks that day 29's weather is never
+used.
 
 ![Samples per year](figures/01_data_split.png)
 
@@ -111,9 +124,10 @@ over-trust them. For the same reason the base models are *not* retrained with 20
 k-fold cross-validation, where each fold is one year: train on two years, validate on the third,
 rotate, and average the three validation scores.
 
-- *Why folds by year and not random 5-fold?* Neighbouring 1 km cells burned by the same fire on
-  the same day are separate samples with almost identical weather. A random split would put some
-  in training and some in validation; the model would "recognise" the fire and the
+- *Why folds by year and not random 5-fold?* Fires come in outbreaks: in 2017-19, 46 % of fires
+  have another fire within 25 km and 3 days, while only 5 % of non-fires have another non-fire
+  that close; neighbouring fires have almost identical weather. A random split would put some fires of an outbreak in
+  training and others in validation; the model would "recognise" the outbreak and the
   cross-validation scores would be too optimistic. Splitting by year rules that out, and it
   copies the real test (predicting years the model has never seen).
 - *Hyperparameters:* every candidate setting is scored by its mean AUPRC over the 3 folds; the
@@ -140,7 +154,7 @@ Features are standardised first (mean 0, standard deviation 1, fitted on trainin
 each coefficient θⱼ means "change in log-odds of fire when feature j rises by one standard
 deviation" and coefficients can be compared with each other. L2 is there because several
 features are strongly correlated (the temperature family, pressure with elevation, NDVI with
-LAI), which otherwise makes coefficients unstable. Chosen by cross-validation: **C = 0.1**.
+LAI), which otherwise makes coefficients unstable. Chosen by cross-validation: **C = 0.01**.
 
 Its limitation: the decision boundary is a straight line (a hyperplane) in feature space, so it
 cannot express "fire if hot **and** dry **and** forested" unless such combinations are added
@@ -156,11 +170,11 @@ leaf; the leaf's share of fire samples is the predicted fire probability.
 
 **Figure 9.** A single depth-3 tree trained on 2017-19, for illustration only (the real forest
 uses 500 much deeper trees). Read it from the top: the first question is
-"`t2m` ≤ 299.6 K?" (air temperature ≤ 26.4 °C). 46 % of training samples answer *yes*, and only
-16 % of those are fires; of the 54 % that answer *no* (hotter), 52 % are fires. The hot branch
-then asks about `slope` and surface pressure `sp`; the cooler branch asks whether there was any
-rain (`tp`). The bottom-right leaf (hot, higher slope value, low-lying, 26 % of samples) is 71 %
-fire. Each box shows: the question, `samples` = share of training samples reaching the box,
+"`t2m` ≤ 300.7 K?" (air temperature on day t-1 ≤ 27.6 °C). 52 % of training samples answer
+*yes*, and only 18 % of those are fires; of the 48 % that answer *no* (hotter), 55 % are fires.
+The hot branch then asks about `slope`, followed by `population` or surface pressure `sp`; the
+cooler branch asks whether there was any rain (`tp`). The bottom-right leaf (hot, higher slope
+value, low-lying, 24 % of samples) is 73 % fire. Each box shows: the question, `samples` = share of training samples reaching the box,
 `value` = [share no fire, share fire] among them, and the majority class.
 
 *How a tree picks its questions.* At each box the algorithm tries every feature and every
@@ -209,7 +223,7 @@ Each model outputs a probability; to say "fire / no fire" we compare it with a *
   ROC-AUC can look good even when many fire alarms are false; AUPRC punishes that. Guessing gives
   AUPRC = share of fires (0.351 on the test set).
 
-Thresholds were chosen to maximise F1 in cross-validation: **0.34 for LR, 0.37 for RF**. They are
+Thresholds were chosen to maximise F1 in cross-validation: **0.39 for LR, 0.41 for RF**. They are
 below 0.5 because fires are the minority class; a lower threshold catches more fires (recall)
 at a modest cost in precision, which F1 rewards.
 
@@ -221,8 +235,8 @@ the season alone gets you; section 7 explains why this matters.
 
 | Model | AUPRC | ROC-AUC | F1 | Precision | Recall | CV AUPRC (2017-19) |
 |---|---|---|---|---|---|---|
-| Logistic regression | 0.710 | 0.819 | 0.673 | 0.579 | 0.804 | 0.684 |
-| **Random forest** | **0.829** | **0.899** | **0.758** | **0.691** | 0.839 | 0.785 |
+| Logistic regression | 0.695 | 0.807 | 0.675 | 0.600 | 0.773 | 0.664 |
+| **Random forest** | **0.811** | **0.888** | **0.747** | **0.707** | **0.791** | 0.775 |
 | Month only (baseline) | 0.554 | 0.757 | 0.644 | 0.581 | 0.723 | – |
 | Random guessing | 0.351 | 0.500 | – | – | – | – |
 
@@ -236,14 +250,14 @@ against the share of non-fires falsely flagged (x). A curve closer to the top-le
 better; the diagonal is guessing. *Right:* precision-recall curve: for every threshold, how many
 alarms are real (y) against how many fires are caught (x); top-right is better, the dotted line
 is guessing. The random forest is above logistic regression everywhere; for example, when catching
-80 % of fires, 71 % of RF alarms are real, against 58 % for LR. The month-only
+80 % of fires, 70 % of RF alarms are real, against 57 % for LR. The month-only
 baseline's curves are made of straight segments because it can only output 12 distinct values.
 
 ![Confusion matrices](figures/04_confusion_matrices.png)
 
 **Figure 4.** Test predictions at the chosen thresholds. Rows are the truth, columns the
-prediction; percentages are per row. The random forest catches more fires (84 % vs 80 %) **and**
-raises far fewer false alarms (494 vs 772 non-fires flagged as fire).
+prediction; percentages are per row. The random forest catches more fires (79 % vs 77 %) **and**
+raises far fewer false alarms (432 vs 681 non-fires flagged as fire).
 
 ## 7. The "fire season" shortcut and season-matched evaluation
 
@@ -271,7 +285,7 @@ that ignores weather, terrain and everything else. Its only rule is: *the chance
 share of fires in this calendar month in 2017-19*. It still reaches **AUPRC 0.55**, where blind
 guessing gets 0.35. That 0.55 is what you get for free from the calendar. It is a yardstick, like
 the logistic regression baseline: if the random forest scored only 0.56, it would have learned
-almost nothing beyond the calendar. It scores 0.83.
+almost nothing beyond the calendar. It scores 0.81.
 
 **Step 3: why our models can use this shortcut.** Month is *not* one of the features, but
 temperature, solar radiation, vegetation and others all reveal the season. A model can learn
@@ -297,21 +311,21 @@ drops to **ROC-AUC 0.500 exactly**, a coin flip, and AUPRC 0.351, chance.
 
 | Model | AUPRC standard | AUPRC season-matched | ROC-AUC standard | ROC-AUC season-matched |
 |---|---|---|---|---|
-| Logistic regression | 0.710 | 0.604 | 0.819 | 0.736 |
-| Random forest | 0.829 | 0.731 | 0.899 | 0.831 |
+| Logistic regression | 0.695 | 0.583 | 0.807 | 0.717 |
+| Random forest | 0.811 | 0.707 | 0.888 | 0.815 |
 | Month only | 0.554 | 0.351 (= chance) | 0.757 | 0.500 (= chance) |
 
 **How to read it.**
-- *Random forest 0.83 → 0.73:* about 0.10 AUPRC of its standard score came from recognising the
-  season. The remaining 0.73, far above the 0.35 chance level, is genuine skill: telling a
+- *Random forest 0.81 → 0.71:* about 0.10 AUPRC of its standard score came from recognising the
+  season. The remaining 0.71, far above the 0.35 chance level, is genuine skill: telling a
   fire day from a non-fire day *within the same part of the year*.
-- *Logistic regression 0.71 → 0.60:* the same kind of drop, still clearly above chance.
+- *Logistic regression 0.70 → 0.58:* the same kind of drop, still clearly above chance.
 - The gap between the two models (≈0.12 AUPRC) is the same under both scorings, so the random
   forest's advantage is not a seasonal artefact.
 
 **Suggested sentence for the project report:** *"Part of the scores reflects the dataset's
 seasonal sampling: the month alone gives AUPRC 0.55. Under a season-matched evaluation the random
-forest keeps AUPRC 0.73 against 0.35 for chance, so it detects fire danger within the fire season,
+forest keeps AUPRC 0.71 against 0.35 for chance, so it detects fire danger within the fire season,
 not just the season itself."*
 
 **Not done (possible extension):** training a model that *cannot* use the shortcut, e.g. by
@@ -326,16 +340,16 @@ results with and without season matching, which is what is done here.
 fire change when the feature rises by one standard deviation, all else equal (exp(θ) is the
 factor on the odds). Orange pushes towards fire, blue away from it.
 
-- The clearest signals are the **wetness** variables: more precipitation (`tp`, odds × 0.43 per
-  SD), higher humidity (`rh`, × 0.54) and higher soil moisture (`smi`, × 0.68) all make fire less
-  likely, as expected.
-- Surface pressure `sp` has the largest positive weight (× 1.93). Pressure is mostly a proxy for
+- The clearest negative signals are the **wetness** variables: more precipitation (`tp`, odds
+  × 0.61 per SD), higher soil moisture (`smi`, × 0.70) and higher humidity (`rh`, × 0.74) all make
+  fire less likely, as expected.
+- Surface pressure `sp` has the largest positive weight (× 1.48). Pressure is mostly a proxy for
   **low elevation** (it correlates strongly with `dem`): lowland and coastal cells burn more.
-- **Caution with correlated features.** Air temperature `t2m` gets a coefficient near zero even
-  though it is one of the strongest single drivers (Figure 6, and the first question of the tree
-  in Figure 9). Its information is shared with `lst_night`, `lst_day` and `d2m`, and L2 spreads
-  the weight across the group. So individual LR coefficients should be read as "given all the
-  other features", not as the importance of the feature alone.
+  Air temperature `t2m` (× 1.28) and solar radiation `ssrd` (× 1.21) also push towards fire.
+- **Caution with correlated features.** With the strong L2 penalty (C = 0.01) the weight of
+  correlated features is spread across the group (`t2m` with `lst_night`, `lst_day` and `d2m`),
+  so no single member gets the full effect. Individual LR coefficients should be read as "given
+  all the other features", not as the importance of the feature alone.
 - `lc_wetland` and `slope` should not be over-interpreted: wetland cover is near zero for almost
   all cells, and `slope` is the feature the EDA found to be mis-scaled.
 
@@ -348,10 +362,13 @@ each feature's questions reduced Gini impurity during training (sums to 1). Impu
 is known to favour features with many distinct values, so the permutation version is the one to
 quote.
 
-- Top five: **soil moisture (`smi`)**, **air temperature (`t2m`)**, `slope`, **population**
-  and night-time land temperature (`lst_night`). Dryness and heat dominate, as the EDA suggested;
-  population plausibly reflects human ignitions.
-- The importances are spread out: no single feature is worth more than ~0.045 AUPRC on its own,
+- Top five: **soil moisture (`smi`)**, **air temperature (`t2m`)**, **population**, `slope`
+  and solar radiation (`ssrd`), with night-time land temperature (`lst_night`) a close sixth.
+  Dryness and heat dominate, as the EDA suggested. Population works the other way round from
+  what one might guess: in the training data the least populated fifth of cells has the highest
+  fire rate (50 %, against 26-38 % for the other fifths), which likely reflects that large fires
+  happen in wildland rather than in towns. These are associations, not causal effects.
+- The importances are spread out: no single feature is worth more than ~0.04 AUPRC on its own,
   partly because correlated features can stand in for each other when one is shuffled.
 - `slope` ranks high in both models despite being mis-scaled (values in a narrow 1.44-1.57 band).
   Its value may act as a proxy for location/region rather than steepness; worth checking before
@@ -363,11 +380,11 @@ quote.
 
 **Figure 7.** Cross-validated AUPRC (leave-one-year-out on 2017-19) for each setting. *Left:*
 logistic regression for C from 0.01 to 100; markers are the three folds (which year was held
-out), the line their mean. The choice barely matters (mean 0.682-0.684); C = 0.1 is best by a
-hair. The fold-to-fold spread (0.63-0.74) is much larger than the effect of C: some years are
+out), the line their mean. The choice barely matters (mean 0.661-0.664); C = 0.01 is best by a
+hair. The fold-to-fold spread (0.62-0.70) is much larger than the effect of C: some years are
 simply harder to predict than others. *Right:* random forest, best score for each tree depth and
 leaf size (over the other two settings). Deeper trees and smaller leaves help slightly, but the
-whole range is only 0.76-0.785 (note the zoomed y-axis): the random forest is not very sensitive
+whole range is only 0.75-0.775 (note the zoomed y-axis): the random forest is not very sensitive
 to these settings.
 
 ## 10. Calibration: can the probabilities be trusted?
@@ -376,9 +393,10 @@ to these settings.
 
 **Figure 8.** The test samples are sorted by predicted probability into 10 equal-sized bins. For
 each bin: average predicted probability (x) against the actual share of fires (y). On the dotted
-diagonal, "70 % fire" really means 70 % of such samples burn. Logistic regression is well
-calibrated. The random forest is slightly *under-confident* at the top (samples it gives
-~0.57 burn ~68 % of the time) and *over-confident* at the bottom. This matters for fusion, which
+diagonal, "70 % fire" really means 70 % of such samples burn. Logistic regression is roughly
+calibrated, slightly *over-confident* in the middle (samples it gives ~0.31 burn ~19 % of the
+time). The random forest is slightly *under-confident* at the top (samples it gives ~0.70 burn
+~80 % of the time) and *over-confident* at the bottom. This matters for fusion, which
 combines the two branches' probabilities; the logistic-regression meta-learner re-scales its
 inputs, so mild mis-calibration is acceptable.
 
@@ -394,10 +412,10 @@ inputs, so mild mis-calibration is acceptable.
   no image needed) instead of the 2017-19 intersection (5,066). *Question: does restricting the
   tabular models to the Sentinel-2 years cost accuracy?* Same hyperparameters as the main models;
   leave-one-year-out CV over 14 years picks the threshold.
-- **B. 7-day means.** Add the mean of each of the 13 dynamic drivers over the last 7 days of the
-  window (40 features). *Question: does the build-up before the fire day (the EDA showed fire and
-  non-fire conditions drift apart over the last ~10 days) add signal beyond the fire day itself?*
-  Tuned from scratch with the same grids and cross-validation.
+- **B. 7-day means.** Add the mean of each of the 13 dynamic drivers over the 7 days up to t-1
+  (days t-7 to t-1, 40 features). *Question: does the build-up before the fire (the EDA showed
+  fire and non-fire conditions drift apart over the last ~10 days) add signal beyond day t-1
+  alone?* Tuned from scratch with the same grids and cross-validation.
 
 ![Side experiments](figures/10_side_experiments.png)
 
@@ -405,18 +423,18 @@ inputs, so mild mis-calibration is acceptable.
 
 | | LR AUPRC | RF AUPRC | LR season-matched | RF season-matched |
 |---|---|---|---|---|
-| Main (2017-19, fire day) | 0.710 | 0.829 | 0.604 | 0.731 |
-| A: all years (2006-19) | 0.731 | 0.830 | 0.614 | 0.739 |
-| B: + 7-day means | 0.734 | 0.831 | 0.660 | 0.729 |
+| Main (2017-19, day t-1) | 0.695 | 0.811 | 0.583 | 0.707 |
+| A: all years (2006-19) | 0.715 | 0.816 | 0.591 | 0.720 |
+| B: + 7-day means | 0.714 | 0.815 | 0.625 | 0.706 |
 
 **Findings.**
-- **A:** almost four times more training data leaves the random forest unchanged (0.829 → 0.830)
-  and helps logistic regression only a little. So using the intersection costs essentially
-  nothing, which supports the decision in section 2.
-- **B:** the 7-day means help **logistic regression** noticeably, especially season-matched
-  (0.604 → 0.660), but not the random forest. A plausible reading: the averages give the linear
+- **A:** almost four times more training data barely moves the random forest (0.811 → 0.816)
+  and helps logistic regression only a little (0.695 → 0.715). So using the intersection costs
+  very little, which supports the decision in section 2.
+- **B:** the 7-day means help **logistic regression**, especially season-matched
+  (0.583 → 0.625), but not the random forest. A plausible reading: the averages give the linear
   model a smoother "has it been hot and dry for a while" signal that it cannot build itself,
-  while the forest already extracts that information from the fire-day values and their
+  while the forest already extracts that information from the day t-1 values and their
   interactions.
 
 ## 12. Hand-off to the fusion model
@@ -440,8 +458,9 @@ inputs, so mild mis-calibration is acceptable.
   label and a CNN could learn "clouds → no fire". The image branch checked that, among the
   remaining tiles, the CNN still separates fires from non-fires within each cloud level
   (ROC-AUC 0.78-0.85 per level; details in `reports/cnn/README.md`).
-- **Same-day danger, not a forecast.** The features include the fire day itself, so the models
-  estimate danger on a given day rather than predicting fires days ahead.
+- **One day ahead only.** The weather features come from the day before the fire (t-1), so the
+  models give a next-day danger estimate, not a forecast several days ahead. They also use a
+  single day, while Mesogeos' own models use the 30 days before the fire.
 - **Not every split is by location.** Years are separated, but the same 1 km cells can appear in
   training and test years. Static features (terrain, land cover) can therefore partly identify
   places that burn repeatedly.

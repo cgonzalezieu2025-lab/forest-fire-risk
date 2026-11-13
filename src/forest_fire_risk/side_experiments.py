@@ -10,8 +10,8 @@ never touch predictions.csv, so the fusion model only ever sees the main LR / RF
                  the 2017-2019 intersection. Would more years of tabular data help? Same
                  hyperparameters as the main models; leave-one-year-out CV (14 folds) picks
                  the threshold.
-  B. mean7       Add the mean of each dynamic driver over the last 7 days to the fire-day
-                 features. Does the build-up before the fire day carry extra signal? Tuned
+  B. mean7       Add the mean of each dynamic driver over the 7 days up to t-1 to the main
+                 (day t-1) features. Does the build-up before the fire carry extra signal? Tuned
                  from scratch with the same grids and CV as the main models.
 
 Both are scored on exactly the same 2021-22 test samples as the main models.

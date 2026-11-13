@@ -3,7 +3,7 @@
     python -m forest_fire_risk.tabular            # tune, fit, evaluate -> reports/tabular/
     python -m forest_fire_risk.tabular_figures    # figures from those results
 
-Data: the 27 fire-day features (STATIC + DYNAMIC on day 29) for the 2017-2022 samples that
+Data: 27 features (STATIC + DYNAMIC on day t-1, the day before the fire) for the 2017-2022 samples that
 also have a Sentinel-2 tile from a scene with at most MAX_CLOUD % cloud, so the tabular,
 CNN and fusion models all see exactly the same samples.
 

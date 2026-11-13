@@ -209,7 +209,7 @@ def fig_side_experiments():
         print("   (side_experiments.csv missing: run python -m forest_fire_risk.side_experiments)")
         return
     side = pd.read_csv(path)
-    labels = {"main": "Main\n(2017-19, fire day)", "all_years": "A: all years\n(2006-19, fire day)",
+    labels = {"main": "Main\n(2017-19, day t-1)", "all_years": "A: all years\n(2006-19, day t-1)",
               "mean7": "B: + 7-day means\n(2017-19)"}
     exps = list(labels)
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.2), sharey=True)

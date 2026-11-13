@@ -1,7 +1,7 @@
 """Mesogeos Track A loaders.
 
 Raw format: positives.csv / negatives.csv, one row per (sample, day). Every sample
-is a 30-day window (`time_idx` 0..29) for one 1 km cell; day 29 is the fire day for
+is a 30-day window (`time_idx` 0..29) for one 1 km cell; day 29 is the fire day t for
 positives. `load_track_a` returns that long table; `to_tabular` / `to_sequences`
 turn it into model-ready arrays; `split_by_year` gives the Mesogeos train/val/test
 split so the tabular and image branches stay aligned.
@@ -43,18 +43,24 @@ def load_track_a(data_dir=DATA_DIR):
     return df.drop(columns="sample")
 
 
+FIRE_DAY = 29              # time_idx of the fire day t (window end)
+INPUT_DAY = FIRE_DAY - 1   # day t-1: the last day whose weather a forecast could know
+
+
 def to_tabular(df, window=1):
     """One row per sample for sklearn-style models.
 
-    Columns: META + STATIC + DYNAMIC on the last day (+ `<var>_mean<window>`,
-    the mean over the last `window` days, when window > 1).
+    Columns: META + STATIC from the fire day t (label, date, place; static values never
+    change) + DYNAMIC on day t-1 (+ `<var>_mean<window>`, the mean over the `window` days
+    ending on t-1, when window > 1). The fire day's weather is never used, as in Mesogeos.
     """
     df = df.sort_values(["sample_id", "time_idx"])
-    last = df[df.time_idx == 29].set_index("sample_id")
-    out = last[META[1:] + STATIC + DYNAMIC].copy()
+    fire_day = df[df.time_idx == FIRE_DAY].set_index("sample_id")
+    input_day = df[df.time_idx == INPUT_DAY].set_index("sample_id")
+    out = fire_day[META[1:] + STATIC].join(input_day[DYNAMIC])
     if window > 1:
-        agg = (df[df.time_idx >= 30 - window].groupby("sample_id")[DYNAMIC].mean()
-               .add_suffix(f"_mean{window}"))
+        in_window = (df.time_idx > INPUT_DAY - window) & (df.time_idx <= INPUT_DAY)
+        agg = df[in_window].groupby("sample_id")[DYNAMIC].mean().add_suffix(f"_mean{window}")
         out = out.join(agg)
     return out.reset_index()
 

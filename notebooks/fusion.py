@@ -116,10 +116,10 @@ example.assign(p_fusion=fit["model"].predict_proba(example)[:, 1],
 
 # %% [markdown]
 # Rows 1-2: same lukewarm random forest (0.45), opposite image evidence, and the CNN decides.
-# Rows 3-4: the random forest leans towards "no fire" (0.20). A CNN at 0.95 is not enough to
-# overrule it: the CNN is overconfident and says 0.95 or more for 17 % of the 2020 samples (42 % of
-# the fires), so 0.95 is ordinary evidence for this model. Only an extreme value (0.9999, under 1 %
-# of samples) flips the answer. This is what the logit scale buys:
+# Rows 3-4: the random forest leans towards "no fire" (0.20). A CNN at 0.95 just overrules it
+# (fusion 0.41, threshold 0.36), and an extreme value (0.9999, under 1 % of samples) pushes fusion
+# to 0.69. The CNN is overconfident and says 0.95 or more for 17 % of the 2020 samples (42 % of
+# the fires), so 0.95 is fairly ordinary evidence for this model. This is what the logit scale buys:
 # 0.95 and 0.9999 look almost equal as probabilities but are far apart as logits (2.9 vs 9.2).
 
 # %% [markdown]
@@ -139,7 +139,7 @@ pd.DataFrame({ev: boot.apply(lambda r: f"{r[ev + '_mean']:+.3f}  [{r[ev + '_ci_l
 # %% [markdown]
 # ## 6. Where fusion changes the decision
 #
-# Compare the random forest alone (its own threshold, 0.369) with fusion (threshold from 2020) on
+# Compare the random forest alone (its own threshold, 0.410) with fusion (threshold from 2020) on
 # each test sample. Most samples get the same answer; the interesting ones are the switches.
 
 # %%
@@ -165,13 +165,12 @@ pd.DataFrame({
                "false alarms": int((cmp.fusion_says & (cmp.label == 0)).sum())}})
 
 # %% [markdown]
-# **Reading it.** Fusion catches about the same number of fires as the random forest alone (+5)
-# but raises **75 fewer false alarms** (419 instead of 494). Most of the gain comes from the
-# 215 samples the random forest flagged and fusion cleared: 70 % of those clearings are correct.
-# The opposite switches (145 samples, "no fire" -> "fire") are right only about half the time,
-# so they roughly cancel out. In short: the image is most useful as a **second opinion that
-# vetoes random-forest false alarms**, e.g. hot, dry days over cells whose tile does not look
-# like fuel that burns.
+# **Reading it.** Fusion catches **81 more fires** than the random forest alone (1,124 instead of
+# 1,043) but also raises 51 more false alarms (483 instead of 432). Of the 140 samples the random
+# forest flagged and fusion cleared, 69 % of the clearings are correct; the 272 opposite switches
+# ("no fire" -> "fire") are right 46 % of the time. Part of this is just the thresholds (fusion
+# 0.36 vs random forest 0.41, so fusion flags more); at equal recall fusion is more precise
+# (75 % vs 71 % of alarms real at 79 % recall, see the report).
 #
 # The samples where the image overrules the random forest most strongly:
 

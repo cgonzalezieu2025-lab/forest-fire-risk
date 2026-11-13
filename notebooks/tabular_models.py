@@ -34,7 +34,7 @@ pd.set_option("display.precision", 3)
 
 # %%
 tab = load_data()
-print(f"{len(tab):,} samples with a tile (scene cloud <= {MAX_CLOUD}%), {len(FEATURES)} fire-day features")
+print(f"{len(tab):,} samples with a tile (scene cloud <= {MAX_CLOUD}%), {len(FEATURES)} features (weather from day t-1)")
 pd.crosstab(tab.split, tab.label, margins=True).rename(columns={0: "no fire", 1: "fire"})
 
 # %%

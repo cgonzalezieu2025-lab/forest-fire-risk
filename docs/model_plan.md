@@ -15,6 +15,9 @@ IMAGE branch     Sentinel-2 tiles                     --> CNN                   
 FUSION           [RF prob, CNN prob] --> Logistic Regression (meta-learner)     --> final prediction
 ```
 
+Tabular weather features come from **day t-1** (the day before the fire), never from the
+fire day itself, as in Mesogeos.
+
 Every model uses the **same samples**: the 2017-2022 samples that have a Sentinel-2 tile
 (scene cloud <= 20 %), so tabular, image and fusion models are compared on identical data.
 Years are used via `split_by_year`:
@@ -26,14 +29,15 @@ Years are used via `split_by_year`:
 | 2021-2022 | test | scored once, at the end |
 
 We never split randomly by row: the 30 rows of a sample are near-duplicates and would
-leak between train and test. Cross-validation folds are whole years for the same reason
-(neighbouring cells of one fire are near-duplicates too).
+leak between train and test. Cross-validation folds are whole years because fires come in outbreaks (in 2017-19,
+46 % of fires have another fire within 25 km and 3 days, vs 5 % of non-fires with another non-fire), so a random
+split would leak near-identical weather between train and validation.
 
 ---
 
 ## Step 1 - Logistic Regression (tabular baseline)
 
-**Status: done.** Results and figures in `reports/tabular/README.md` (test AUPRC 0.710).
+**Status: done.** Results and figures in `reports/tabular/README.md` (test AUPRC 0.695, day t-1 features).
 
 **What:** Linear model on the `to_tabular` feature matrix. Preprocessing: impute NaNs,
 standardize features, apply **L2 regularization**.
@@ -58,7 +62,7 @@ finding: it motivates the nonlinear model.
 
 ## Step 2 - Random Forest (tabular, nonlinear)
 
-**Status: done.** Test AUPRC 0.829, i.e. it beats LR as expected; see `reports/tabular/README.md`.
+**Status: done.** Test AUPRC 0.811 (day t-1 features), i.e. it beats LR as expected; see `reports/tabular/README.md`.
 
 **What:** Tree ensemble on the **same** features and the **same** year split.
 Preprocessing: impute NaNs only (no scaling needed).
@@ -118,8 +122,8 @@ exactly what convolutions are built for; a tabular model can't use raw pixels.
 
 ## Step 5 - Fusion (meta-learner)
 
-**Status: done.** Logit inputs, fitted on 2020, test AUPRC 0.864 (season-matched 0.793): above
-both RF (0.829 / 0.731) and CNN (0.749 / 0.705). See `reports/fusion/README.md`.
+**Status: done.** Logit inputs, fitted on 2020, test AUPRC 0.848 (season-matched 0.779): above
+both RF (0.811 / 0.707) and CNN (0.749 / 0.705). See `reports/fusion/README.md`.
 
 The tabular and image branches each output a **single fire probability** per sample.
 Fusion learns how to combine those two probabilities into one final prediction, using a
@@ -189,6 +193,6 @@ on predictions over the base models' own training data silently inflates the sco
 
 1. LR baseline (tabular). **Done.**
 2. RF (tabular), compare on F1 / AUPRC / ROC-AUC — confirm RF wins before investing further.
-   **Done: RF wins** (AUPRC 0.829 vs 0.710; season-matched 0.731 vs 0.604).
+   **Done: RF wins** (AUPRC 0.811 vs 0.695; season-matched 0.707 vs 0.583).
 3. GEE Sentinel-2 puller + CNN (image). **Done** (first version, AUPRC 0.749).
-4. LR meta-learner combining RF + CNN probabilities (fusion), with out-of-fold predictions. **Done** (AUPRC 0.864).
+4. LR meta-learner combining RF + CNN probabilities (fusion), with out-of-fold predictions. **Done** (AUPRC 0.848).
