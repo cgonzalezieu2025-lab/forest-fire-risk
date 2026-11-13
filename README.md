@@ -75,8 +75,15 @@ disguise. The loader exposes `DYNAMIC` / `STATIC` lists that exclude them. Never
 on the same samples. Never split randomly by row: the 30 rows of a sample are near-duplicates.
 
 ### Sentinel-2 images (Google Earth Engine)
-One RGB tile per sample in 2017-2022 (3,968 fires, 8,025 non-fires). Needs a Google account with a
-Cloud project that has the Earth Engine API enabled (https://developers.google.com/earth-engine/guides/access).
+One RGB tile per sample in 2017-2022 (3,968 fires, 8,025 non-fires).
+
+**Quick way, no Earth Engine account:** the exact tiles we used are a file on the repo's
+`tiles-v1` release.
+
+    python -m forest_fire_risk.download_images    # -> data/images/ (1.7 GB: 11,579 PNGs + index.csv)
+
+**From scratch:** needs a Google account with a Cloud project that has the Earth Engine API
+enabled (https://developers.google.com/earth-engine/guides/access).
 
     earthengine authenticate                      # once, opens a browser
     export EE_PROJECT=<your-cloud-project-id>
@@ -157,12 +164,14 @@ baseline 0.554. Season-matched (the "fire season" shortcut removed): RF 0.707, L
 ## Image model (CNN)
 Full write-up with figures: **`reports/cnn/README.md`**. Code: `src/forest_fire_risk/cnn.py`.
 
-    python -m forest_fire_risk.cnn                # cache tiles, train on the GPU (~7 min), evaluate -> reports/cnn/
+    python -m forest_fire_risk.cnn                # cache tiles, train 5 seeds on the GPU (~20 min), evaluate -> reports/cnn/
     python -m forest_fire_risk.cnn_figures        # figures -> reports/cnn/figures/
 
 ResNet-18 (ImageNet weights) fine-tuned on the RGB tiles of the same 10,922 samples and the same
-years as the tabular models (2017–2019 train with a 15 % hold-out for early stopping, 2020 untouched,
-2021–22 test). Test 2021–22: AUPRC 0.749 (ROC-AUC 0.843); season-matched 0.705. Between the logistic
+years as the tabular models (2017–2019 train: 2019 is held out to pick the stopping epoch and the
+threshold, then the model is refit on all three years; 2020 untouched; 2021–22 test). GPU training is
+noisy, so it is trained five times and the reported CNN is the average of the five: test AUPRC 0.760
+(ROC-AUC 0.850); season-matched 0.723. A single training gets 0.714 ± 0.019. Between the logistic
 regression and the random forest. `reports/cnn/predictions.csv` holds `p_cnn` for 2020 and 2021–22.
 
 ## Fusion (random forest + CNN)
@@ -172,9 +181,9 @@ Full write-up with figures: **`reports/fusion/README.md`**. Code: `src/forest_fi
     python -m forest_fire_risk.fusion_figures     # figures -> reports/fusion/figures/
 
 Logistic-regression meta-learner on the logits of `p_rf` and `p_cnn`, fitted on 2020 (where neither base
-model trained), settings and threshold from 5-fold CV inside 2020. Test 2021–22: AUPRC 0.848 (ROC-AUC 0.907),
-against 0.811 for the random forest and 0.749 for the CNN; season-matched 0.779 against 0.707. Both gains over
-the random forest are clearly above zero in a paired bootstrap (+0.037 and +0.072).
+model trained), settings and threshold from 5-fold CV inside 2020. Test 2021–22: AUPRC 0.853 (ROC-AUC 0.911),
+against 0.811 for the random forest and 0.760 for the CNN; season-matched 0.782 against 0.707. Both gains over
+the random forest are clearly above zero in a paired bootstrap (+0.042 and +0.075).
 
 ## EDA
 `notebooks/eda_track_a.ipynb` (source: `notebooks/eda_track_a.py`, converted with jupytext;
@@ -205,6 +214,7 @@ train on 2006–2019 and test on all 2021–22 samples, so they are not directly
         data.py             loaders: long table, tabular view, sequence arrays, year split
         explore_mesogeos.py inspect the raw zarr datacube (optional)
         gee_images.py       fetch Sentinel-2 tiles from Google Earth Engine
+        download_images.py  or download the same tiles from the GitHub release
         images.py           TileDataset for the CNN branch
         tabular.py          logistic regression + random forest (main tabular pipeline)
         side_experiments.py tabular "what if" experiments, not used by fusion
@@ -233,17 +243,18 @@ train on 2006–2019 and test on all 2021–22 samples, so they are not directly
 - [x] Tabular models: logistic regression baseline and random forest on the tabular + Sentinel-2
       intersection, leave-one-year-out CV, season-matched evaluation, report (`reports/tabular/`)
 - [x] CNN (ResNet-18) on the tiles, same samples and years, cloudy-tile rule confirmed, report (`reports/cnn/`)
-- [x] Fusion: LR meta-learner on RF + CNN, trained on 2020, test AUPRC 0.848, report (`reports/fusion/`)
+- [x] CNN: 2019 hold-out instead of a random one, five seeds and their average, freezing tested (no gain)
+- [x] Tiles downloadable from the `tiles-v1` release (`download_images.py`), no Earth Engine needed
+- [x] Fusion: LR meta-learner on RF + CNN, trained on 2020, test AUPRC 0.853, report (`reports/fusion/`)
 - [x] Tabular inputs switched to day t-1 (no fire-day weather), tabular + fusion re-run
 
 ## Next steps
 The plan and reasoning are in `docs/model_plan.md`. What is left before the sentence outline (15 Nov)
 and the final report (25 Nov), as planned in the progress report:
 1. Tabular models: done, including the switch to day t-1 inputs (`reports/tabular/README.md`).
-2. CNN: retrain several times to measure run-to-run variance, reduce overfitting (e.g. freeze the
-   early layers or add near-infrared bands), and hold out 2019 instead of a random 15 % for early
-   stopping and the threshold (`reports/cnn/README.md`).
-3. Fusion: refit on each CNN run (the day t-1 refit is done), add per-year scores, and look at its
-   errors on the map (`reports/fusion/README.md`). Whenever the CNN or the tabular models change,
+2. CNN: done (2019 hold-out, five seeds, freezing tested; `reports/cnn/README.md`). Optional:
+   near-infrared bands.
+3. Fusion: refit on each single CNN training (`reports/cnn/predictions_runs.csv`), add per-year
+   scores, and look at its errors on the map (`reports/fusion/README.md`). Whenever the CNN or the tabular models change,
    re-run `python -m forest_fire_risk.fusion` (10 s).
 4. Final report, written together.
