@@ -21,17 +21,20 @@ tf.FIG_DIR = FIG_DIR                                # tf.save writes here
 
 
 def fig_history(history):
+    """Step 1 of every training (fit 2017-18, 2019 held out): one thin line per seed."""
     fig, ax = plt.subplots(figsize=(7, 3.8))
-    ax.plot(history.epoch, history.train_loss, color=tf.COLOR["cnn"], lw=2, label="training loss")
     ax2 = ax.twinx()
-    ax2.plot(history.epoch, history.holdout_auprc, color=tf.FIRE, lw=2, label="hold-out AUPRC")
+    for i, (seed, h) in enumerate(history.groupby("seed")):
+        ax.plot(h.epoch, h.train_loss, color=tf.COLOR["cnn"], lw=1.5, alpha=0.7, label="training loss" if i == 0 else None)
+        ax2.plot(h.epoch, h.holdout_auprc, color=tf.FIRE, lw=1.5, alpha=0.7, label="hold-out AUPRC" if i == 0 else None)
+        best = h.holdout_auprc.idxmax()
+        ax2.scatter(h.epoch[best], h.holdout_auprc[best], color=tf.FIRE, zorder=3, s=40,
+                    label="epoch kept" if i == 0 else None)
     ax2.grid(False)
     ax2.spines["top"].set_visible(False)
-    best = history.holdout_auprc.idxmax()
-    ax2.scatter(history.epoch[best], history.holdout_auprc[best], color=tf.FIRE, zorder=3, s=60,
-                label=f"kept: epoch {history.epoch[best]} (AUPRC {history.holdout_auprc[best]:.3f})")
-    ax.set(xlabel="Epoch", ylabel="Training loss (binary cross-entropy)", title="CNN training")
-    ax2.set_ylabel("AUPRC on the 15 % hold-out of 2017-19")
+    ax.set(xlabel="Epoch", ylabel="Training loss (binary cross-entropy)",
+           title=f"CNN training, {history.seed.nunique()} seeds (fit 2017-18)")
+    ax2.set_ylabel("AUPRC on the 2019 hold-out")
     h1, l1 = ax.get_legend_handles_labels()
     h2, l2 = ax2.get_legend_handles_labels()
     ax.legend(h1 + h2, l1 + l2, loc="center right", fontsize=8.5)
@@ -56,6 +59,26 @@ def fig_examples(test, p, n=6):
                     ha="right", fontsize=9, fontweight="bold")
     fig.suptitle("Test tiles (2.56 km, 2021-22) and the CNN's fire probability", fontweight="bold")
     tf.save(fig, "03_example_tiles.png")
+
+
+def fig_runs(runs, metrics):
+    """Test AUPRC of every CNN training (one dot per seed) next to the random forest's single value."""
+    fig, ax = plt.subplots(figsize=(6, 3.8))
+    rf = metrics[metrics.model == "rf"].set_index("evaluation").auprc
+    for x, (col, ev, label) in enumerate([("auprc", "standard", "Standard"),
+                                          ("auprc_season_matched", "season_matched", "Season-matched")]):
+        ax.scatter(np.full(len(runs), x) + np.linspace(-0.08, 0.08, len(runs)), runs[col], color=tf.COLOR["cnn"],
+                   s=45, zorder=3, label="CNN, one training per dot" if x == 0 else None)
+        ax.hlines(metrics[metrics.model == "cnn"].set_index("evaluation").auprc[ev], x - 0.2, x + 0.2,
+                  color=tf.COLOR["cnn"], lw=2, label="CNN, average of the trainings (reported)" if x == 0 else None)
+        ax.hlines(rf[ev], x - 0.2, x + 0.2, color=tf.COLOR["rf"], lw=2, ls="--",
+                  label="Random forest" if x == 0 else None)
+    ticks = [f"{label}\nsingle trainings: {runs[col].mean():.3f} ± {runs[col].std():.3f}"
+             for col, label in [("auprc", "Standard"), ("auprc_season_matched", "Season-matched")]]
+    ax.set(xticks=[0, 1], xticklabels=ticks, xlim=(-0.5, 1.5), ylabel="Test AUPRC",
+           title=f"CNN run-to-run spread ({len(runs)} seeds)")
+    ax.legend(fontsize=8.5, loc="upper right")
+    tf.save(fig, "04_runs.png")
 
 
 def by_cloud(test, probs):
@@ -86,6 +109,7 @@ def main():
     fig_history(pd.read_csv(REPORT_DIR / "history.csv"))
     tf.fig_roc_pr(test, probs, metrics)
     fig_examples(test, probs["cnn"])
+    fig_runs(pd.read_csv(REPORT_DIR / "runs.csv"), metrics)
     cloud = by_cloud(test, {"cnn": probs["cnn"], "rf": probs["rf"]})
     cloud.to_csv(REPORT_DIR / "by_cloud.csv", index=False)
     print(cloud.round(3).to_string(index=False))
