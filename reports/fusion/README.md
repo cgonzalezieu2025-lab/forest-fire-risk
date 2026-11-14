@@ -28,14 +28,20 @@ probability (Sentinel-2 tile) into one prediction. Same samples, years and metri
 | `cv_results.csv` | Every setting tried in the 2020 cross-validation |
 | `bootstrap.csv` | Fusion AUPRC minus RF / CNN AUPRC on test: mean and 95 % paired-bootstrap interval |
 | `predictions.csv` | `p_rf`, `p_cnn`, `p_fusion` per `sample_id`; for 2020 `p_fusion` is out-of-fold |
+| `per_run.csv`, `per_run_summary.csv` | Fusion refitted on each single CNN training (section 5.1) |
+| `per_year.csv`, `per_year_bootstrap.csv` | Scores and fusion-minus-RF bootstrap for 2021 and 2022 separately (section 5.2) |
+| `errors.csv`, `errors_summary.csv` | Every test sample with coordinates and its fusion / RF outcome; counts and miss rates (section 5.3) |
 | `figures/` | The figures below |
 
 ```bash
-python -m forest_fire_risk.fusion           # ~10 s, needs only reports/tabular/ and reports/cnn/predictions.csv
-python -m forest_fire_risk.fusion_figures   # figures
+python -m forest_fire_risk.fusion              # ~10 s, needs only reports/tabular/ and reports/cnn/predictions.csv
+python -m forest_fire_risk.fusion_figures      # figures
+python -m forest_fire_risk.fusion_robustness   # ~20 s, section 5.1 and 5.2
+python -m forest_fire_risk.fusion_errors       # section 5.3; coordinates from data/raw/track_a/ or the map viewer
 ```
 
-Code: `src/forest_fire_risk/fusion.py`, `fusion_figures.py`; tests in `tests/test_fusion.py`.
+Code: `src/forest_fire_risk/fusion.py`, `fusion_figures.py`, `fusion_robustness.py`, `fusion_errors.py`;
+tests in `tests/test_fusion.py` and `tests/test_fusion_robustness.py`.
 Interactive companion: `notebooks/fusion.ipynb` (source `notebooks/fusion.py`, jupytext); every
 cell runs without the raw data, tiles or GPU.
 No raw data, tiles or GPU are needed: fusion only reads the two committed prediction files.
@@ -149,13 +155,99 @@ Fusion is ahead in 100 % of the resamples in all four cases.
   another 0.004. Season-matched the plain average is even slightly ahead (0.786 vs 0.782), so
   the two are level within noise.
 
-## 5. Limitations
+## 5. Robustness checks
 
-- **The bootstrap covers test-sample noise, not training noise.** Single CNN trainings differ by
-  about ±0.02 AUPRC (`reports/cnn/README.md`, section 3). The CNN input is now the average of
-  five trainings, which was stable to about ±0.002 between two complete runs, so this matters
-  much less than before. Refitting fusion on each single training
-  (`reports/cnn/predictions_runs.csv`) would show the spread directly; that is still to do.
+### 5.1 One fusion per CNN training
+
+The bootstrap above covers noise in the test samples, not noise in training the CNN. To see that
+directly, the meta-learner is refitted on 2020 once per single CNN training (seeds 42-46,
+`reports/cnn/predictions_runs.csv`), with the same grid, CV and threshold rule, and scored on 2021-22.
+
+| CNN input | CNN AUPRC | w_rf | w_cnn | Fusion AUPRC | Gain vs RF | Fusion AUPRC season-matched | Gain vs RF season-matched |
+|---|---|---|---|---|---|---|---|
+| seed 42 | 0.702 | 2.16 | 1.04 | 0.841 | +0.031 | 0.758 | +0.051 |
+| seed 43 | 0.688 | 1.96 | 0.96 | 0.834 | +0.023 | 0.750 | +0.043 |
+| seed 44 | 0.733 | 2.09 | 1.16 | 0.849 | +0.039 | 0.779 | +0.073 |
+| seed 45 | 0.720 | 1.98 | 0.90 | 0.847 | +0.036 | 0.770 | +0.064 |
+| seed 46 | 0.728 | 2.07 | 1.29 | 0.850 | +0.039 | 0.775 | +0.069 |
+| **mean ± sd of the five** | 0.714 ± 0.019 | 2.05 | 1.07 | **0.844 ± 0.007** | **+0.033 ± 0.007** | 0.766 ± 0.012 | **+0.060 ± 0.012** |
+| average of the five (main fusion) | 0.760 | 1.79 | 1.25 | 0.853 | +0.042 | 0.782 | +0.076 |
+
+- **The gain survives training noise.** Every single training beats the random forest, by at
+  least +0.023 (standard) and +0.043 (season-matched). The spread of fusion's AUPRC (sd 0.007)
+  is about three times smaller than the CNN's own (sd 0.019): the meta-learner damps the CNN's noise.
+- **Averaging the five CNNs is worth about +0.01** over a typical single training (0.853 vs 0.844).
+- **Learned weights vs the plain average.** With a single, noisier CNN, learned fusion beats the
+  plain average of the two probabilities in all five runs (+0.017 on average): the meta-learner
+  gives the CNN less weight (1.07 vs 1.25) than the averaged CNN gets. Season-matched the two are
+  level (+0.003, range -0.005 to +0.009). So the learned weights mainly help when the image model is noisy.
+
+### 5.2 Per test year
+
+The main fusion (averaged CNN), scored on each test year separately; season weights recomputed inside
+each year, thresholds unchanged.
+
+| Year (samples, fires) | Model | AUPRC | AUPRC season-matched | ROC-AUC |
+|---|---|---|---|---|
+| 2021 (2,056, 723) | **Fusion** | **0.872** | 0.788 | **0.922** |
+| | Average | 0.866 | **0.793** | 0.916 |
+| | Random forest | 0.842 | 0.716 | 0.906 |
+| | CNN | 0.764 | 0.719 | 0.850 |
+| 2022 (1,702, 596) | **Fusion** | **0.829** | 0.777 | **0.898** |
+| | Average | 0.828 | **0.783** | 0.895 |
+| | Random forest | 0.770 | 0.689 | 0.865 |
+| | CNN | 0.758 | 0.736 | 0.850 |
+
+Fusion minus RF (paired bootstrap, 95 % interval): 2021 **+0.029** [+0.015, +0.043], season-matched
++0.071 [+0.043, +0.098]; 2022 **+0.059** [+0.041, +0.078], season-matched +0.088 [+0.063, +0.113].
+Fusion is ahead of the random forest in every resample in both years.
+
+- **The gain holds in both years**, so it is not driven by one fire season.
+- **2022 is harder for the random forest** (0.842 → 0.770), but the CNN is stable (0.764 → 0.758),
+  so the image helps most in the harder year: the gain roughly doubles.
+
+### 5.3 Errors on the map
+
+At its threshold, fusion catches 1,009 of the 1,319 test fires (misses 310) and raises 308 false
+alarms on 2,439 non-fires; the random forest catches 1,043, misses 276 and raises 432 false alarms.
+
+![Fusion's errors on the map](figures/04_error_map.png)
+
+**Figure 4.** Every 2021-22 test sample at its cell. Top: fires caught (green) and missed (red).
+Bottom: non-fires, with fusion's false alarms in blue.
+
+![Where fusion and RF disagree](figures/05_switch_map.png)
+
+**Figure 5.** Samples where fusion and the random forest disagree: fusion right and RF wrong (green,
+252: 182 false alarms cleared, 70 fires caught) and the opposite (red, 162: 104 fires missed,
+58 false alarms added).
+
+Share of fires missed (`errors_summary.csv`):
+
+| Fires | n | Fusion | Random forest |
+|---|---|---|---|
+| June-September | 1,148 | 20.6 % | 16.6 % |
+| Other months | 171 | **42.7 %** | 49.7 % |
+| East of 3.5° E | 1,001 | 18.0 % | 17.2 % |
+| West of 3.5° E (Iberia, north-west Africa) | 318 | 40.9 % | **32.7 %** |
+
+- **Off-season fires** are where fusion helps most: it misses fewer of them than the random
+  forest, in line with the larger season-matched gain.
+- **West of 3.5° E fusion misses more fires than the random forest** (41 % vs 33 %), while east of
+  it the two are level. The CNN rates western fires lower overall (median `p_cnn` 0.52 vs 0.71
+  east), and the 43 western fires the random forest catches but fusion misses have a median
+  `p_cnn` of only 0.19 (RF 0.51): the image pulls them under the threshold. Why the CNN under-rates
+  fires there (landscape, tile quality, or how many western fires are in 2017-19) is not tested
+  yet; it is the clearest weakness of the fusion model.
+- False alarms are spread over the whole basin, roughly following where the samples are.
+
+## 6. Limitations
+
+- **The bootstrap covers test-sample noise, not training noise.** Section 5.1 covers this directly:
+  refitting fusion on each single CNN training moves its AUPRC by sd 0.007, and the gain over the
+  random forest stays positive in every run.
+- **The 3.5° E split in section 5.3 is a simple longitude cut**, not a country or ecoregion map;
+  it is enough to show the west/east difference, not to explain it.
 - **One year to fit the meta-learner.** 2020 is a single fire season (2,098 samples); the
   meta-learner has only three parameters, so this is enough to fit it, but its weights reflect
   how the base models behaved in that one year.
