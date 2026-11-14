@@ -248,6 +248,7 @@ train on 2006–2019 and test on all 2021–22 samples, so they are not directly
 - [x] Tiles downloadable from the `tiles-v1` release (`download_images.py`), no Earth Engine needed
 - [x] Fusion: LR meta-learner on RF + CNN, trained on 2020, test AUPRC 0.853, report (`reports/fusion/`)
 - [x] Tabular inputs switched to day t-1 (no fire-day weather), tabular + fusion re-run
+- [x] Fusion robustness: refit per CNN training, per-year scores, error maps (`reports/fusion/README.md`, section 5)
 
 ## Next steps
 The plan and reasoning are in `docs/model_plan.md`. What is left before the sentence outline (15 Nov)
@@ -255,7 +256,9 @@ and the final report (25 Nov), as planned in the progress report:
 1. Tabular models: done, including the switch to day t-1 inputs (`reports/tabular/README.md`).
 2. CNN: done (2019 hold-out, five seeds, freezing tested; `reports/cnn/README.md`). Optional:
    near-infrared bands.
-3. Fusion: refit on each single CNN training (`reports/cnn/predictions_runs.csv`), add per-year
-   scores, and look at its errors on the map (`reports/fusion/README.md`). Whenever the CNN or the tabular models change,
-   re-run `python -m forest_fire_risk.fusion` (10 s).
+3. Fusion: done, including the robustness checks (`reports/fusion/README.md`, section 5): refit on
+   each single CNN training (gain over RF +0.033 ± 0.007, positive in all five), scores per year
+   (gain in both 2021 and 2022) and errors on the map (fusion misses more fires than RF west of
+   3.5° E). Whenever the CNN or the tabular models change, re-run `python -m forest_fire_risk.fusion`,
+   then `fusion_robustness` and `fusion_errors`.
 4. Final report, written together.

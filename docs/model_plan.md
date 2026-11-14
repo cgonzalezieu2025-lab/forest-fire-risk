@@ -125,6 +125,9 @@ exactly what convolutions are built for; a tabular model can't use raw pixels.
 
 **Status: done.** Logit inputs, fitted on 2020, test AUPRC 0.853 (season-matched 0.782): above
 both RF (0.811 / 0.707) and CNN (0.760 / 0.723). See `reports/fusion/README.md`.
+Robustness (section 5 there): refitted on each single CNN training, fusion keeps a gain over RF of
++0.033 ± 0.007 (all five positive); the gain holds in 2021 and 2022 separately; on the map fusion
+misses more fires than RF in the west (Iberia, north-west Africa).
 
 The tabular and image branches each output a **single fire probability** per sample.
 Fusion learns how to combine those two probabilities into one final prediction, using a
