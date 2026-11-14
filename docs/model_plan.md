@@ -109,8 +109,9 @@ to the models.
 
 ## Step 4 - CNN (image branch)
 
-**Status: first version done.** ResNet-18 fine-tuned on the RGB tiles, test AUPRC 0.749
-(season-matched 0.705): above LR, below RF. See `reports/cnn/README.md`.
+**Status: done.** ResNet-18 fine-tuned on the RGB tiles, 2019 held out for early stopping, average
+of five trainings: test AUPRC 0.760 (season-matched 0.723): above LR, below RF. A single training
+gets 0.714 ± 0.019. See `reports/cnn/README.md`.
 
 **What:** CNN on Sentinel-2 RGB tiles pulled from Google Earth Engine for the
 2017-2022 samples (~3,968 fires / 8,025 non-fires), same year split.
@@ -122,8 +123,8 @@ exactly what convolutions are built for; a tabular model can't use raw pixels.
 
 ## Step 5 - Fusion (meta-learner)
 
-**Status: done.** Logit inputs, fitted on 2020, test AUPRC 0.848 (season-matched 0.779): above
-both RF (0.811 / 0.707) and CNN (0.749 / 0.705). See `reports/fusion/README.md`.
+**Status: done.** Logit inputs, fitted on 2020, test AUPRC 0.853 (season-matched 0.782): above
+both RF (0.811 / 0.707) and CNN (0.760 / 0.723). See `reports/fusion/README.md`.
 
 The tabular and image branches each output a **single fire probability** per sample.
 Fusion learns how to combine those two probabilities into one final prediction, using a
@@ -194,5 +195,5 @@ on predictions over the base models' own training data silently inflates the sco
 1. LR baseline (tabular). **Done.**
 2. RF (tabular), compare on F1 / AUPRC / ROC-AUC — confirm RF wins before investing further.
    **Done: RF wins** (AUPRC 0.811 vs 0.695; season-matched 0.707 vs 0.583).
-3. GEE Sentinel-2 puller + CNN (image). **Done** (first version, AUPRC 0.749).
-4. LR meta-learner combining RF + CNN probabilities (fusion), with out-of-fold predictions. **Done** (AUPRC 0.848).
+3. GEE Sentinel-2 puller + CNN (image). **Done** (average of five trainings, AUPRC 0.760).
+4. LR meta-learner combining RF + CNN probabilities (fusion), with out-of-fold predictions. **Done** (AUPRC 0.853).

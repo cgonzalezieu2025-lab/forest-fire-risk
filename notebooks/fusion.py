@@ -46,7 +46,7 @@ pd.crosstab(df.split.map({"val": "2020 (fit fusion)", "test": "2021-22 (test)"})
 # %% [markdown]
 # How similar are the two base models? A correlation near 1 would mean they say the same thing
 # and fusion has nothing to add. Around 0.6 they often disagree, which is what makes combining
-# them worthwhile. On the logit scale the CNN's extreme probabilities (as low as 2e-5) are spread
+# them worthwhile. On the logit scale the CNN's extreme probabilities (as low as 8e-5) are spread
 # out instead of squashed against 0.
 
 # %%
@@ -71,7 +71,7 @@ pd.Series({"input scale": meta["input"], "C": meta["C"], "CV AUPRC (2020)": roun
 
 # %% [markdown]
 # Every setting tried: the logit scale beats raw probabilities for every C, and C hardly matters
-# from 0.1 upwards (only two inputs, so there is little to regularise).
+# (only two inputs, so there is little to regularise).
 
 # %%
 cv = pd.read_csv(REPORT_DIR / "cv_results.csv")
@@ -116,19 +116,19 @@ example.assign(p_fusion=fit["model"].predict_proba(example)[:, 1],
 
 # %% [markdown]
 # Rows 1-2: same lukewarm random forest (0.45), opposite image evidence, and the CNN decides.
-# Rows 3-4: the random forest leans towards "no fire" (0.20). A CNN at 0.95 just overrules it
-# (fusion 0.41, threshold 0.36), and an extreme value (0.9999, under 1 % of samples) pushes fusion
-# to 0.69. The CNN is overconfident and says 0.95 or more for 17 % of the 2020 samples (42 % of
-# the fires), so 0.95 is fairly ordinary evidence for this model. This is what the logit scale buys:
-# 0.95 and 0.9999 look almost equal as probabilities but are far apart as logits (2.9 vs 9.2).
+# Rows 3-4: the random forest leans towards "no fire" (0.20). A CNN at 0.95 overrules it
+# (fusion 0.63, threshold 0.50). The CNN input is the average of five trainings, so it is rarely
+# that sure: only 3 % of the 2020 samples (9 % of the fires) get 0.95 or more, and none reach
+# 0.9999. The logit scale is what lets such a rare, strong opinion count: 0.95 and 0.9999 look
+# almost equal as probabilities but are far apart as logits (2.9 vs 9.2).
 
 # %% [markdown]
 # ## 5. Is the gain real?
 #
 # Paired bootstrap: resample the 3,758 test samples with replacement 2,000 times and recompute
 # "fusion AUPRC minus base-model AUPRC" each time. If the 95 % interval stays above zero, the
-# gain is not luck in which test samples we happen to have. (It does not cover the CNN's own
-# run-to-run variance of about +-0.02-0.03; see the report.)
+# gain is not luck in which test samples we happen to have. (It does not cover the CNN's training
+# noise; the CNN input is an average of five trainings to keep that small, see the CNN report.)
 
 # %%
 boot = pd.read_csv(REPORT_DIR / "bootstrap.csv").set_index("vs")
@@ -165,12 +165,12 @@ pd.DataFrame({
                "false alarms": int((cmp.fusion_says & (cmp.label == 0)).sum())}})
 
 # %% [markdown]
-# **Reading it.** Fusion catches **81 more fires** than the random forest alone (1,124 instead of
-# 1,043) but also raises 51 more false alarms (483 instead of 432). Of the 140 samples the random
-# forest flagged and fusion cleared, 69 % of the clearings are correct; the 272 opposite switches
-# ("no fire" -> "fire") are right 46 % of the time. Part of this is just the thresholds (fusion
-# 0.36 vs random forest 0.41, so fusion flags more); at equal recall fusion is more precise
-# (75 % vs 71 % of alarms real at 79 % recall, see the report).
+# **Reading it.** Fusion raises **124 fewer false alarms** than the random forest alone (308
+# instead of 432) and catches 34 fewer fires (1,009 instead of 1,043). Of the 286 samples the
+# random forest flagged and fusion cleared, 64 % of the clearings are correct; the 128 opposite
+# switches ("no fire" -> "fire") are right 55 % of the time. Part of this is just the thresholds
+# (fusion 0.50 vs random forest 0.41, so fusion flags less); at equal recall fusion is more
+# precise (75 % vs 71 % of alarms real at 79 % recall, see the report).
 #
 # The samples where the image overrules the random forest most strongly:
 

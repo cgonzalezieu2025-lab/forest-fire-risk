@@ -457,7 +457,7 @@ inputs, so mild mis-calibration is acceptable.
   days are cloud-free by construction, see the EDA), so cloud cover itself is a hint about the
   label and a CNN could learn "clouds → no fire". The image branch checked that, among the
   remaining tiles, the CNN still separates fires from non-fires within each cloud level
-  (ROC-AUC 0.78-0.85 per level; details in `reports/cnn/README.md`).
+  (ROC-AUC 0.82-0.85 per level; details in `reports/cnn/README.md`).
 - **One day ahead only.** The weather features come from the day before the fire (t-1), so the
   models give a next-day danger estimate, not a forecast several days ahead. They also use a
   single day, while Mesogeos' own models use the 30 days before the fire.
