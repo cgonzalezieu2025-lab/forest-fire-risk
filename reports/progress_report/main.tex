@@ -1,0 +1,72 @@
+% ============================================================
+% FOREST FIRE RISK - PROGRESS REPORT (due Sunday 1 November 2026, 23:59)
+% Built from the official BAM project template (bam-project.cls v1.2).
+%
+% While writing:   \documentclass[annotated,onecolumn]{bam-project}
+%                  -> grey guidance boxes and placeholders are visible.
+% To check length: switch to [clean,onecolumn] and recompile.
+%                  Max two pages of text after the cover page;
+%                  figures and tables go at the end (sections/98b_figures_tables.tex).
+% Before submit:   [clean,onecolumn], every box and placeholder gone.
+%
+% Each person edits only their own file in sections/.
+% Main.tex (metadata, section order, summary) is owned by Claudia.
+% Plan: https://claude.ai/artifact/RHxHPnvroeC1p9cxkzmXXE
+% ============================================================
+
+% The IE Overleaf server has a minimal TeX Live. These two lines make the
+% template work there; on a full TeX Live they change nothing visible.
+\def\BAMplainfonts{}                          % skip T1 fonts (not installed)
+\makeatletter\def\input@path{{texmf/}}\makeatother  % packages we bundled
+
+\documentclass[clean,onecolumn]{bam-project}
+
+% Numbered bibliography style, as in the template. Cite with \cite{key};
+% entries live in references.bib. amsplain.bst is bundled in the project
+% root because the IE server lacks it (BibTeX only looks there, not in texmf/).
+\BAMbibliographystyle{amsplain}
+\BAMbibliographyfile{references}
+
+\graphicspath{{figures/}}
+
+% ============================================================
+% PROJECT METADATA
+% ============================================================
+\BAMtitle{Forest Fire Risk Classification with Multi-Modal Machine Learning: Progress Report}
+\BAMshorttitle{Forest Fire Risk: Progress Report}
+\BAMcourse{Machine Learning}
+\BAMteam{Claudia González\\[0.2em]Sophia Kanashina\\[0.2em]Alexandru Rodideal}
+\BAMinstructors{Nacho Molina Clemente}
+\BAMsubmissiondate{1 November 2026}
+
+\begin{document}
+
+\makebamtitle
+\BAMannotationnotice
+
+% ============================================================
+% SUMMARY - Claudia
+% ============================================================
+\begin{BAMabstract}
+\annotation{\textbf{[Owner: Claudia | about 60 words]} Restate the research question (unchanged from the proposal), name the four models (logistic regression, random forest, CNN, fusion), and give the headline result so far with its number. End with the repository and map links.}
+
+For our project, we ask: Does combining Sentinel-2 satellite images with a tabular random forest improve daily wildfire classification over the Mediterranean, and are the two sources complementary or redundant? We trained a logistic regression model, a random forest, a CNN on image tiles, and a fusion model combining the last two on 10,922 samples. On the test years (2021-2022), fusion showed an AUPRC of 0.864, whilst CNN had 0.749 and RF 0.829, showing a clear improvement in fire prediction.
+
+
+\noindent Code: \url{https://github.com/cgonzalezieu2025-lab/forest-fire-risk}\\
+Map: \url{https://forest-fire-risk-map.vercel.app}
+\end{BAMabstract}
+
+\input{sections/01_recap}
+\input{sections/02_tabular}
+\input{sections/03_cnn}
+\input{sections/04_fusion}
+\input{sections/05_comparison}
+\input{sections/06_plan}
+
+\BAMprintbibliography
+\input{sections/98b_figures_tables}
+
+\input{sections/99_declaration}
+
+\end{document}

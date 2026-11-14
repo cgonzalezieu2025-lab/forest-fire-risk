@@ -220,6 +220,7 @@ train on 2006–2019 and test on all 2021–22 samples, so they are not directly
     reports/tabular/        tabular models: written report, metrics, predictions for fusion, figures
     reports/cnn/            CNN: written report, metrics, predictions for fusion, figures
     reports/fusion/         fusion: written report, metrics, meta-learner weights, figures
+    reports/progress_report/ progress report as submitted (PDF + LaTeX source)
     models/                 fitted models, git-ignored (re-created by the pipelines)
     tests/                  pytest sanity checks (synthetic data, no download needed)
     data/                   raw downloads, git-ignored

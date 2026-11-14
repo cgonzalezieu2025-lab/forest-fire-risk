@@ -1,0 +1,20 @@
+% ============================================================
+% 5. MODEL COMPARISON AND DISCUSSION - everyone (draft: Sophia, ~150 words)
+% ============================================================
+\section{Model Comparison and Discussion}
+\label{sec:comparison}
+
+\annotation{\textbf{[Owner: everyone, first draft by Sophia | about 150 words]} This is the core of the progress report: the brief asks for ``a preliminary comparison and discussion of alternative models''. Introduce Table~\ref{tab:comparison} in the text, then discuss: (1) ranking and size of the gaps; (2) how much of each model's score survives season matching; (3) whether fusion's gain, or the lack of one, means the two sources are complementary or redundant; (4) one sentence on the published Mesogeos sequence baselines (F1 $\approx$ 0.79), which use a different setup \cite{kondylatos2023mesogeos}.}
+
+\annotation{\textbf{[Table]} Table~\ref{tab:comparison} sits in the Figures and Tables section at the end (\texttt{sections/98b\_figures\_tables.tex}), as in the proposal. Tabular and month-baseline values are from \texttt{reports/tabular/metrics.csv} (checked). Sandu fills the CNN F1, Claudia the fusion row. Three decimals everywhere.}
+
+
+The main results can be seen in Table~\ref{tab:comparison} where all the models are evaluated on the same 3,758 test samples from 2021--2022. By AUPRC, fusion scores 0.864 $>$ RF 0.829 $>$ CNN 0.749 $>$ LR 0.710 $>$ month-only 0.554, so fusion outperforms both single models, while random forest is the best single model. CNN, using only a satellite photo, still beats logistic regression which uses all the 27 tabular features.
+
+Every model loses some score under season matching (see Section~\ref{sec:tabular}): LR $-0.106$, RF $-0.098$, fusion $-0.071$, CNN $-0.044$. The CNN loses the least, likely because the satellite photos mostly show the place (vegetation, dryness of the land) rather than the time of the year. Therefore, fusion's gains over RF almost double under season matching, from +0.035 to +0.062 (Figure~\ref{fig:fusion-bars}).
+
+To check that the fusion's gain is not just luck in the test set, we used a paired bootstrap: we re-drew the 3,758 test samples with replacement 2,000 times and computed the difference between fusion and RF each time. This gave 95\% intervals of +0.023 to +0.046 (standard) and +0.042 to +0.082 (season-matched), both clearly above zero. The bootstrap does not cover luck in training the CNN (its AUPRC changed from 0.749 to 0.725 when it was trained again), but the fusion gain is larger than this spread, so it most likely survives.
+
+Mesogeos' own models (LSTM, Transformer) reach AUPRC 0.85--0.86, but they use the 30 days before the fire, more training years (2006--2019) and all test samples \cite{kondylatos2023mesogeos}, so the numbers aren't directly comparable; still, our results are in a similar range with a much smaller training set. Also, Mesogeos' non-fire samples are cells at least 62 km away from any fire that day, so all our scores are probably higher than they would be in practice.
+
+In future we want to switch tabular inputs to the day before the fire ($t-1$) to avoid any leakage; in a preliminary test, fusion still beats RF with these inputs (0.848 -- fusion AUPRC vs 0.811 -- RF AUPRC). We also want to retrain the CNN several times to see how its variation impacts the fusion model. Judging from the results we have now, satellite images add information the tabular features do not have, especially beyond the seasonal pattern, which is our main contribution.

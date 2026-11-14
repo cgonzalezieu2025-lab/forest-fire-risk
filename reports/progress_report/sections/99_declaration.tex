@@ -1,0 +1,30 @@
+% ============================================================
+% DECLARATION OF CONTRIBUTIONS AND AI USE - everyone
+% Required by the brief in every submission.
+% ============================================================
+\BAMunnumberedsection{Declaration of Contributions and AI Use}
+\label{sec:contributions}
+
+\annotation{\textbf{[Rules]} One entry per member: what you did, with concrete outputs. Then one AI-use entry per member for every material use: tool and version, purpose, a representative prompt, what the output was, what you changed or rejected, how you verified it, and which code, figures, sections or decisions it affected. The brief forbids AI-generated prose; say so explicitly for the text.}
+
+\subsection*{Teamwork and Review Process}
+We split the work by model (tabular models: Sophia; CNN: Alexandru; fusion: Claudia) and agreed on a shared plan so that all models use the same samples, years and metrics. All code went into a shared GitHub repository through pull requests that another member reviewed and re-ran before merging, and the report was written together in a shared Overleaf project, each member drafting their own sections.
+
+\subsection*{Individual Contributions}
+
+\subsubsection*{Claudia}
+Set up the shared repository: the conda environment and package structure, the Mesogeos exploration script, the Track~A downloader and data loader, and the first EDA notebook. Built the fusion branch: the logistic-regression meta-learner on the random forest and CNN probabilities (\texttt{src/forest\_fire\_risk/fusion.py}), its figures, tests, written report (\texttt{reports/fusion/README.md}) and notebook (\texttt{notebooks/fusion.ipynb}), submitted as pull request~\#3. Wrote the Abstract, Section~\ref{sec:recap}, Section~\ref{sec:fusion} and Section~\ref{sec:plan}.
+
+\subsubsection*{Sophia}
+Built the tabular branch: the logistic regression and random forest pipeline on the tabular and Sentinel-2 intersection (\texttt{src/forest\_fire\_risk/tabular.py}, side experiments, figures, tests and \texttt{reports/tabular/README.md}), including the year-based cross-validation, the threshold choice, the month-only baseline and the season-matched evaluation, and the predictions used by the fusion model (pull request \#1). Reviewed and re-ran the fusion pull request before approving it. Set up the shared Overleaf project, wrote Section~\ref{sec:tabular} and Section~\ref{sec:comparison}, and added the results table and the tabular and comparison figures.
+
+\subsubsection*{Alexandru}
+Built the Sentinel-2 tile pipeline: the Google Earth Engine fetcher, the tile index and image loaders and the pull of 11,579 tiles for 2017 to 2022. Created the map viewer which allowed for easy visualization of dataset for the model. Worked on Track A exploratory analysis notebook and its figures. Worked on the image branch of the model, the ResNet-18 pipeline, figures, test, and written reports as well as the CNN predictions for fusion. Similarly performed the cloud cover analysis that dropped all tiles with above 20\,\% of cloud coverage. Finally, wrote Section ~\ref{sec:cnn} of the report and did the figures referenced, showing error curves and example tiles.
+
+
+\subsection*{Generative AI and Other Digital Tools}
+\textbf{Sophia --- Claude Code (Claude Opus 5.5, Anthropic).} Used for coding the tabular pipeline, clarifying concepts and learning new ones, helping structure the report, checking numbers and references, and trimming wording. I worked iteratively: I described the task, the tool proposed a plan, I reviewed and changed it, and we repeated this until I was satisfied. I checked every output against the code, the result files and the sources, and I am responsible for the final code and text. 
+
+\textbf{Claudia --- Claude Code (Claude Opus 5.5, Anthropic).} Used to understand the repository and the methods (cross-validation, AUPRC, season-matched evaluation, stacking), to write the fusion code, report, figures and notebook, and to structure and edit parts of my report sections. I described each task, reviewed the output, and asked for changes until it matched what I wanted. I verified the fusion results by re-running the pipeline, notebook and tests on my own machine and checking that the numbers matched the result files, and I am responsible for the final code and text.
+
+\textbf{Alexandru --- Claude Code (Claude Fable 5.1, Anthropic).} Used to initially explore the dataset and gain an idea of it. Coded the dataset visualizer on Vercel and used it to help write the code to get the tiles and select the ones used for training. Finally used it to write the code for the actual model and run the training and generate the code for the figures used. I planned out each task asking for feedback and what would be done differently, then reviewed code written by doing an independent run in the command line. I am responsible for the final code and text. 

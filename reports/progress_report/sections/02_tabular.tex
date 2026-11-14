@@ -1,0 +1,45 @@
+% ============================================================
+% 2. TABULAR MODELS - Sophia (~250 words)
+% ============================================================
+\section{Tabular Models: Logistic Regression and Random Forest}
+\label{sec:tabular}
+
+\annotation{\textbf{[Owner: Sophia | about 250 words]} What we did, what came out, what went wrong and how we handled it. Exact numbers are in \texttt{reports/tabular/metrics.csv} and \texttt{best\_params.json}. The data split is explained in Section~\ref{sec:recap}; refer to it, do not repeat it.}
+
+\annotation{\textbf{[Setup and validation]} 27 fire-day features (13 dynamic on day 29 + 14 static). Logistic regression: impute, standardise, L2 penalty. Random forest: impute only. Leave-one-year-out cross-validation ($k=3$) over 2017--2019, scored by AUPRC, picks the hyperparameters and the F1-maximising threshold (out-of-fold). Why year folds: neighbouring cells of one fire are near-duplicates, so a random split leaks. Chosen: LR $C=0.1$, threshold 0.34; RF 500 trees, max depth 20, \texttt{max\_features}=sqrt, no class weights, threshold 0.37. Cite scikit-learn \cite{pedregosa2011sklearn}.}
+
+
+\annotation{\textbf{[Results]} The test numbers go in Table~\ref{tab:comparison} (Section~\ref{sec:comparison}); here, interpret them: RF AUPRC 0.829 vs LR 0.710, as the proposal expected (interactions matter). Top RF permutation importances: \texttt{smi}, \texttt{t2m}, \texttt{slope}, \texttt{population}, \texttt{lst\_night}; \texttt{slope} is the feature the EDA flagged as mis-scaled, so be careful how you interpret it.}
+
+\annotation{\textbf{[Problems and fixes]} (1) Season shortcut: a month-only baseline already reaches AUPRC 0.554, so we also report a season-matched AUPRC (test non-fires reweighted to the fires' month mix): RF 0.731, LR 0.604, chance 0.351. (2) Land-surface temperature missing more often on no-fire days: imputation. (3) Collinearity: L2 for LR; RF unaffected. Side experiments in one sentence: all years 2006--2019 give no RF gain; 7-day means help LR only.}
+
+\annotation{\textbf{[Figure]} Figures go in the Figures and Tables section at the end, as in the proposal; refer to them here (``Figure~\ref{fig:season-matched}''). Your two candidates are already there; keep the one(s) you actually discuss.}
+
+
+\subsection{Setup and Validation}
+Tabular models have 27 features: 13 dynamic drivers on the fire day $t$ and 14 static. Logistic regression (LR) is a baseline tabular model, the simplest one we could make. For it, we have used median imputation and standardization, using the training data, as well as L2 regularization to handle collinearity of the features. We have chosen $C=0.1$ hyperparameter for regularization. Random Forest is the main tabular model which is later used in the fusion. Only imputation with training data was used on this model \cite{pedregosa2011sklearn}. For Random Forest (RF), we chose 500 trees and depth of 20. The hyperparameters for both models were chosen using leave-one-year-out cross validation on 2017--2019 training data by AUPRC. The reason to use this type of cross validation rather than a random split is that fires tend to start in clusters: several fires often break out in a nearby area within a few days, so their weather data is almost identical. A random split can put some of the ``clustered'' fires in train and others in validation, letting the model test on the situations it has already effectively seen. Logistic regression has a decision threshold of 0.34 and random forest has a threshold of 0.37, both chosen to maximize F1 on out-of-fold predictions.
+
+\subsection{Results}
+As was expected, the interactions between features (non-linear relationship) matter for prediction of the model. Logistic regression underperforms compared to the random forest, likely because it does not capture them: logistic regression gives AUPRC 0.710, ROC-AUC 0.819 and F1 0.673, compared to AUPRC 0.829, ROC-AUC 0.899 and F1 0.758 for random forest (Table~\ref{tab:comparison}).
+
+Random forest relies most on soil moisture, air temperature, terrain slope, population density and night-time land-surface temperature (Figure~\ref{fig:rf-importance}). In the training data, fires are more frequent on drier soils, on hotter days, on warmer nights, on steeper terrain and in the least populated areas, which likely reflects that large fires occur in wildland rather than towns. These are not causal effects.
+
+Two side experiments did not change the picture: training on all years 2006--2019 gave RF no gain, and adding 7-day averages of the weather only helped LR.
+
+\subsection{Problems and Fixes}
+\textbf{Season Shortcut.}
+  Fires in the dataset are strongly concentrated in the summer, so a model could score well by just recognizing the time of the year which is not what we want. To test whether this is the case we construct a simple month-only baseline: for each calendar month in the training it computes the share of fires and gives every test sample its month's share as the predicted probability. This baseline alone reaches AUPRC 0.554, compared with 0.351 random guessing (which is just the total share of fires in the test data). However, logistic regression and random forest beat it, so they use more information than just the season. To remove the season effect completely we also computed the season-matched score: it included reweighting the test non-fires such that each non-fire contributes more in the case of a month with frequent fires and less in case of the month with few fires, so that every month has the same share of non-fires as of fires. The month baseline then falls to exactly the guessing level (0.351), while RF (0.731) and LR (0.604) stay well above it (Figure~\ref{fig:season-matched}).
+
+  
+  \textbf{Land surface temperature is missing more on non-fire days.}
+  This problem was solved by imputing the missing values with the median from the training data, without adding a ``was missing'' flag, so the model cannot learn that a missing temperature means no fire.
+
+  
+  \textbf{Bug with the ``slope'' feature within the Mesogeos dataset.}
+  The slope values in Mesogeos look wrong: almost every cell is listed as nearly vertical (close to $90^\circ$), which is not realistic, probably because of a scaling or calculation bug in the dataset. We don't know the exact cause, so we did not try to fix it and used the values as given. This does not change the random forest, because it only looks at which cells are steeper than others, but it makes the logistic regression slightly worse (in a side experiment, rescaling ``slope'' gave logistic regression an AUPRC about 0.03 higher).
+
+  
+  \textbf{Prediction time.}
+  The tabular models predict using the data from the fire day $t$, while Mesogeos itself only uses the days before the fire \cite{kondylatos2023mesogeos}. A fair problem to consider is that using the fire day can cause some leakage. As a side test with day $t-1$ data we get AUPRC values of 0.811 and 0.695 for random forest and logistic regression respectively. These predictions are not much worse than the day $t$ ones. However, we are planning on changing the tabular models to use inputs from day $t-1$ in the final pipeline.
+
+

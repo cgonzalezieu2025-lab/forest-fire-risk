@@ -1,0 +1,19 @@
+% ============================================================
+% 1. RECAP AND CHANGES SINCE THE PROPOSAL - Claudia (~150 words)
+% ============================================================
+\section{Recap and Changes Since the Proposal}
+\label{sec:recap}
+
+\annotation{\textbf{[Owner: Claudia | about 150 words]} Remind the reader of the question in one sentence, describe the final sample set once (the other sections refer back here instead of repeating it), and justify every change from the proposal. The brief asks us to ``justify the choices made''.}
+
+\annotation{\textbf{[Cover]}
+(1) Research question, one sentence: does fusing a Sentinel-2 CNN with a tabular random forest beat either source alone, and are the sources complementary?
+(2) Final samples: Mesogeos Track A $\cap$ Sentinel-2 tiles, 2017--2022, scene cloud $\leq 20\%$: 10{,}922 samples; all models use exactly these.
+(3) Year roles: train 2017--2019; 2020 only for the fusion meta-learner; test 2021--2022 (3{,}758 samples), scored once.
+(4) Changes to justify: the decision threshold and hyperparameters now come from leave-one-year-out cross-validation on 2017--2019 instead of from 2020, because 2020 is reserved for fusion; 657 cloudy tiles were dropped (the proposal said 644 by mistake), mostly no-fire (571 vs 86), so keeping them would let the CNN learn ``cloudy means no fire''; samples are not restricted to March--October.}
+
+\annotation{\textbf{[Cite]} Mesogeos \cite{kondylatos2023mesogeos}, EFFIS \cite{effis}, Sentinel-2 via Google Earth Engine \cite{gorelick2017gee}.}
+
+Our research question remains: does fusing a Sentinel-2 CNN with a tabular random forest beat either source alone, and are the two sources complementary? To compare the models fairly, we only kept the samples from Mesogeos Track A~\cite{kondylatos2023mesogeos} from 2017--2022 that have a Sentinel-2~\cite{drusch2012sentinel2} tile, retrieved through Google Earth Engine~\cite{gorelick2017gee}, with no more than 20\% cloud cover; this leaves 10,922 samples with fire labels from EFFIS~\cite{effis}. All base models (LR, RF, CNN) are trained on 2017--2019, the fusion model is trained on 2020, and the 3,758 samples from 2021--2022 are used only for the final test.
+
+Several things differ from the proposal. Since the 2020 samples are reserved for training the fusion model, we now choose the hyperparameters and threshold of the base models through leave-one-year-out cross-validation within 2017--2019. Moreover, we removed the 657 tiles (not 644, as the proposal stated) taken from scenes with more than 20\% cloud cover: since fires usually happen on clear days, nearly all of them were non-fires (571 against 86), which would lead the CNN to learn that ``cloudy means no fire'' instead of anything about the land. Finally, samples were kept from every month rather than only March to October, and the resulting seasonal bias is handled at evaluation time.

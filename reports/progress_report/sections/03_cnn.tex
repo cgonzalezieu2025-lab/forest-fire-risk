@@ -1,0 +1,39 @@
+% ============================================================
+% 3. IMAGE MODEL - Sandu (~250 words)
+% ============================================================
+\section{Image Model: Convolutional Neural Network}
+\label{sec:cnn}
+
+\annotation{\textbf{[Owner: Sandu | about 250 words]} What we did, what came out, what went wrong and how we handled it. Use the numbers of the model committed to \texttt{main} (\texttt{reports/cnn/}); update the ones below if they changed.}
+
+\annotation{\textbf{[Setup and validation]} Architecture (cite it, and any pretrained weights), input ($256\times256$ RGB tiles at 10\,m, the 15 days before the fire day), augmentation, loss, optimiser, epochs; training years 2017--2019 only. Early stopping and the threshold use a 15\% hold-out of 2017--2019: say how it is drawn. If it is a random row split, neighbouring cells of one fire can fall on both sides; either explain why that is fine or name it as a limitation.}
+
+\annotation{\textbf{[Results]} First run on the same 3{,}758 test samples: AUPRC 0.749, ROC-AUC 0.843, season-matched AUPRC 0.705. Key point for the research question: the CNN loses less under season matching ($-0.044$) than the random forest ($-0.098$), so the images may carry signal beyond ``which month''. Put the numbers in Table~\ref{tab:comparison}, interpret them here.}
+
+\annotation{\textbf{[Problems and fixes]} Cloudy tiles and the agreed 20\% rule (the CNN still separates fire/no-fire within each cloud bucket, ROC-AUC 0.78--0.85); tiles missing in 2017 before surface-reflectance coverage; anything else from training (overfitting, class imbalance, compute).}
+
+\annotation{\textbf{[Figure, optional]} Example fire vs no-fire tiles, or the training curve. Save as \texttt{figures/sandu\_<what>.png} and add it in the Figures and Tables section at the end (\texttt{sections/98b\_figures\_tables.tex}).}
+
+\subsection{Setup and Validation}
+
+For image processing, the model ResNet-18 was used \cite{he2016resnet}, having been pretrained on ImageNet \cite{deng2009imagenet} and fine-tuned end to end in PyTorch \cite{paszke2019pytorch}. The last layer is replaced by a single output: the fire logit. 
+
+
+The format of the input is $256\times256$ RGB Sentinel-2 tile \cite{drusch2012sentinel2} with a 10\,m resolution, covering about 2.56\,km of area. It is fetched through the Google Earth Engine \cite{gorelick2017gee}, choosing the least cloudy scene from the past 15-days, day of the fire not included so as to prevent leakage. Even an older image is fine as the area does not change drastically even in 15 days. Daily weather is therefore handled by the tabular branch of our project. 
+
+
+The model was trained on data from 2017-2019 only, using binary cross entropy, AdamW (learning rate $10^{-4}$, batch size 64), random rotations and flips as well as early-stopping. 
+
+
+ The stopping epoch and the F1 threshold (0.39) was chosen through a random 15\,\% hold-out of the 2017-2019 samples, stratified by label. Usually fires tend to cluster in outbreaks under almost identical conditions, therefore nearly identical samples can end up on either side of a random split. As a result, either choice may prove somewhat optimistic. The testing dataset was never used for any decision. In the final version of the report we will hold out 2019 as the validation set instead. 
+
+\subsection{Results}
+On the 3{,}758 test samples, the CNN reaches an AUPRC of 0.749, a ROC-AUC of 0.843 and an F1 of 0.695 (Table~\ref{tab:comparison}). This places the model above logistic regression but below random forest, which gets to see the weather of the day as well. If season matching is included, the CNN's AUPRC drops by only 0.044 (to 0.705), while the random forest's drops by 0.098. Therefore a big part of the CNN's score comes from recognizing \emph{which places} burn rather than \emph{which months}. A verification re-run yielded a score of 0.725, so the differences smaller than around 0.03 should be treated as run specific noise. Figure~\ref{fig:cnn-tiles} shows what the network learned, dry, sparsely vegetated summer shrublands most likely will be read as a fire, whilst dense forests and farmlands are more likely to be labeled as safe. Furthermore, its false alarms look like the tiles labeled as confident fires. 
+
+\subsection{Problems and Fixes} 
+In this part of our project, three main problems arose. First of all, clouds, which led to the dropping of tiles above 20\,\% cloud cover (657 tiles, 571 of them being a no-fire) from every model. Had we kept them in, the model could have learned that clouds automatically mean no fire. Within the kept tiles, the CNN's fire probability still decreases as cloud cover rises, but the random forest, which never sees the image, shows the same trend: cloudier days are simply more often non-fire days. Within each cloud-cover group the CNN still separates fires from non-fires (ROC-AUC 0.78–0.85), so it does not rely on clouds alone.
+
+
+Secondly, some samples had no image at all: when fetching, we only accepted scenes with at most 60 \% cloud cover from the 15 days before the fire, and for 414 samples, mostly 2017 non-fires, no such scene existed. Therefore all models use a common dataset of the 10,922 samples that have a usable tile.
+
+Finally, overfitting. The training loss keeps falling to 0.09 whilst the hold out AUPRC levels off from epoch 5 and onwards (Figure~\ref{fig:cnn-training}). For now we fix this with early-stopping. Next steps are exploring the option of freezing the early layers or adding near-infrared bands. 

@@ -1,0 +1,30 @@
+% ============================================================
+% 4. FUSION - Claudia (~130 words)
+% ============================================================
+\section{Fusion of the Two Sources}
+\label{sec:fusion}
+
+\annotation{\textbf{[Owner: Claudia | about 130 words]} Design, result, and the choices behind them. Predictions to join on \texttt{sample\_id}: \texttt{reports/tabular/predictions.csv} (\texttt{p\_rf}) and \texttt{reports/cnn/predictions.csv} (\texttt{p\_cnn}).}
+
+\annotation{\textbf{[Design]} Stacking: a logistic regression on the two base-model probabilities, as in Equation~\eqref{eq:fusion}, fitted on the 2020 predictions (2{,}098 samples: 741 fire, 1{,}357 no-fire), a year that no base model was trained or tuned on. The threshold is chosen by cross-validation within 2020, never on the test years. Introduce the equation in a sentence and explain every symbol.}
+
+\ifannotated
+\begin{equation}
+    p_{\text{final}} = \sigma\!\left(w_0 + w_{\text{rf}}\,p_{\text{rf}} + w_{\text{cnn}}\,p_{\text{cnn}}\right)
+    \label{eq:fusion}
+\end{equation}
+\fi
+
+\annotation{\textbf{[Results and problems]} AUPRC, ROC-AUC, F1, both standard and season-matched, go in Table~\ref{tab:comparison}. Report the weights $w_{\text{rf}}$ and $w_{\text{cnn}}$: they show how much each source is trusted. Explain why the meta-learner is kept to three parameters (2020 is small). If fusion does not beat the random forest, say so; that is still an answer to the research question.}
+
+
+To combine both models we use stacking: a small logistic regression that takes the random forest's and the CNN's fire probabilities for each sample and turns them into one final probability,
+\begin{equation}
+p_{\text{final}} = \sigma\!\left(w_0 + w_{\text{rf}}\, z_{\text{rf}} + w_{\text{cnn}}\, z_{\text{cnn}}\right),
+\label{eq:fusion}
+\end{equation}
+$w_0$ being the intercept and $z_{\text{rf}}$, $z_{\text{cnn}}$ being the standardised logits of the two probabilities; the standardised logits are useful so that both inputs are on the same scale and the weights $w_{\text{cnn}}$ and $w_{\text{rf}}$ directly show how much each source is trusted.
+
+The model is trained on the 2020 predictions (2,098 samples: 741 fire, 1,357 no fire), a year that none of the base models saw. From cross-validation, we set the threshold at 0.38. One of the problems that we encountered was that the CNN model was overconfident, as it set many of its probabilities very close to 0 or 1; using logits instead of raw probabilities made these probabilities spread out and, as a result, scored better in cross-validation.
+
+On 2021--2022, fusion reaches AUPRC 0.864 and 0.793 after season matching, above both base models (Table~\ref{tab:comparison}, Figure~\ref{fig:fusion-bars}). Both weights are positive ($w_{\text{rf}} = 2.13$, $w_{\text{cnn}} = 1.26$), so the random forest is trusted more but the image still adds information (Figure~\ref{fig:fusion-scatter}). Since the CNN's score varies between trainings, these numbers depend on the CNN run.
