@@ -210,9 +210,9 @@ def fig_side_experiments():
         return
     side = pd.read_csv(path)
     labels = {"main": "Main\n(2017-19, day t-1)", "all_years": "A: all years\n(2006-19, day t-1)",
-              "mean7": "B: + 7-day means\n(2017-19)"}
+              "mean7": "B: + 7-day means\n(2017-19)", "slope_rank": "C: slope as rank\n(2017-19)"}
     exps = list(labels)
-    fig, axes = plt.subplots(1, 2, figsize=(11, 4.2), sharey=True)
+    fig, axes = plt.subplots(1, 2, figsize=(13, 4.2), sharey=True)
     for ax, ev in zip(axes, ["standard", "season_matched"]):
         d = side[side.evaluation == ev]
         x = np.arange(len(exps))
@@ -225,7 +225,7 @@ def fig_side_experiments():
         ax.set_title({"standard": "Standard test set", "season_matched": "Season-matched"}[ev])
     axes[0].set_ylabel("Test AUPRC (2021-22)")
     axes[0].legend(fontsize=8.5, loc="upper center", bbox_to_anchor=(1.1, -0.18), ncol=2, frameon=False)
-    fig.suptitle("Side experiments (not used by fusion): more years, or 7-day means", fontweight="bold", y=1.02)
+    fig.suptitle("Side experiments (not used by fusion): more years, 7-day means, slope as rank", fontweight="bold", y=1.02)
     save(fig, "10_side_experiments.png")
 
 
