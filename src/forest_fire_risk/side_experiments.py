@@ -13,11 +13,16 @@ never touch predictions.csv, so the fusion model only ever sees the main LR / RF
   B. mean7       Add the mean of each dynamic driver over the 7 days up to t-1 to the main
                  (day t-1) features. Does the build-up before the fire carry extra signal? Tuned
                  from scratch with the same grids and CV as the main models.
+  C. slope_rank  Replace `slope` (mis-scaled in Mesogeos: almost all values in 1.44-1.57) by its
+                 rank among the training samples (0 = flattest, 1 = steepest). Keeps the order,
+                 drops the odd scale. The random forest only uses the order, so it should not
+                 change; does the logistic regression? Same hyperparameters as the main models.
 
-Both are scored on exactly the same 2021-22 test samples as the main models.
+All are scored on exactly the same 2021-22 test samples as the main models.
 """
 import json
 
+import numpy as np
 import pandas as pd
 
 from forest_fire_risk.data import DYNAMIC
@@ -46,10 +51,32 @@ def mean7():
     return evaluate(fitted, train, test, MEAN7).assign(experiment="mean7", train_years="2017-2019"), test
 
 
+def rank_slope(train, test):
+    """Map `slope` to its rank among the training values (fitted on train only, so no leak).
+    Missing values stay missing and are imputed later inside the model pipeline."""
+    ref = np.sort(train.slope.dropna().to_numpy())
+
+    def to_rank(s):
+        return s.where(s.isna(), np.searchsorted(ref, s, side="right") / len(ref))
+
+    return train.assign(slope=to_rank(train.slope)), test.assign(slope=to_rank(test.slope))
+
+
+def slope_rank():
+    best = json.loads((REPORT_DIR / "best_params.json").read_text())
+    tab = load_data()
+    train, test = rank_slope(tab[tab.split == "train"], tab[tab.split == "test"])
+    print("C. slope_rank: slope replaced by its training rank")
+    fitted = {name: fit(make(), {k: [v] for k, v in best[name]["params"].items()}, train)
+              for name, make in [("logreg", make_lr), ("rf", make_rf)]}
+    return evaluate(fitted, train, test).assign(experiment="slope_rank", train_years="2017-2019")
+
+
 def main():
     b, test = mean7()
     a = all_years(test)
-    out = pd.concat([a, b])
+    c = slope_rank()
+    out = pd.concat([a, b, c])
     out = out[out.model != "month"]                    # the baseline is in metrics.csv already
     main_rows = pd.read_csv(REPORT_DIR / "metrics.csv").query("model != 'month'")
     out = pd.concat([main_rows.assign(experiment="main", train_years="2017-2019"), out])

@@ -405,7 +405,7 @@ inputs, so mild mis-calibration is acceptable.
 > These are extra "what if" experiments for the discussion section of the report. Their models
 > are **not saved and are not used by the fusion model**; `predictions.csv` contains only the
 > main models above. Code: `src/forest_fire_risk/side_experiments.py`, results:
-> `side_experiments.csv`. Both are scored on exactly the same 2021-22 test samples as the main
+> `side_experiments.csv`. All are scored on exactly the same 2021-22 test samples as the main
 > models.
 
 - **A. All training years.** Train on every Track A year 2006-2019 (19,504 samples, tabular only,
@@ -416,16 +416,22 @@ inputs, so mild mis-calibration is acceptable.
   (days t-7 to t-1, 40 features). *Question: does the build-up before the fire (the EDA showed
   fire and non-fire conditions drift apart over the last ~10 days) add signal beyond day t-1
   alone?* Tuned from scratch with the same grids and cross-validation.
+- **C. Slope as rank.** Replace `slope` (mis-scaled in Mesogeos, almost all values in 1.44-1.57)
+  by its rank among the 2017-19 training samples (0 = flattest, 1 = steepest; fitted on train
+  only). *Question: does the odd scale hurt the logistic regression?* The rank keeps the order,
+  and a tree only uses the order, so the random forest should not change. Same hyperparameters
+  as the main models.
 
 ![Side experiments](figures/10_side_experiments.png)
 
-**Figure 10.** Test AUPRC of the main models and the two side experiments.
+**Figure 10.** Test AUPRC of the main models and the three side experiments.
 
 | | LR AUPRC | RF AUPRC | LR season-matched | RF season-matched |
 |---|---|---|---|---|
 | Main (2017-19, day t-1) | 0.695 | 0.811 | 0.583 | 0.707 |
 | A: all years (2006-19) | 0.715 | 0.816 | 0.591 | 0.720 |
 | B: + 7-day means | 0.714 | 0.815 | 0.625 | 0.706 |
+| C: slope as rank | 0.725 | 0.810 | 0.622 | 0.706 |
 
 **Findings.**
 - **A:** almost four times more training data barely moves the random forest (0.811 → 0.816)
@@ -436,6 +442,13 @@ inputs, so mild mis-calibration is acceptable.
   model a smoother "has it been hot and dry for a while" signal that it cannot build itself,
   while the forest already extracts that information from the day t-1 values and their
   interactions.
+- **C:** the rank version of `slope` lifts **logistic regression** from 0.695 to 0.725
+  (season-matched 0.583 → 0.622), while the random forest stays where it was (0.810 vs 0.811,
+  same CV AUPRC 0.775). The linear model needs a feature whose *values* are meaningful; the
+  mis-scaled slope squeezes almost all cells into a narrow band near its maximum, so a single
+  coefficient fits it badly. The forest only needs the *order*, which the rank keeps. (The tiny
+  RF change comes from test values that fall between two training values sharing a rank.)
+  The main pipeline keeps `slope` as given, as agreed; this only quantifies the limitation.
 
 ## 12. Hand-off to the fusion model
 

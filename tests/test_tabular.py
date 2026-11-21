@@ -62,3 +62,13 @@ def test_shipped_predictions_still_fit_fusion():
     assert set(tab.split) == {"val", "test"}
     df = fusion.load_predictions()      # raises if samples, labels, dates or splits disagree
     assert len(df) == len(tab)
+
+
+def test_rank_slope_keeps_order_and_uses_train_only():
+    from forest_fire_risk.side_experiments import rank_slope
+    train = pd.DataFrame({"slope": [1.50, 1.45, np.nan, 1.55]})
+    test = pd.DataFrame({"slope": [1.40, 1.52, 1.60, np.nan]})
+    tr, te = rank_slope(train, test)
+    assert list(tr.slope.iloc[[1, 0, 3]]) == [1 / 3, 2 / 3, 1.0]   # order kept, ranks from train
+    assert te.slope.iloc[0] == 0 and te.slope.iloc[2] == 1          # outside train range -> 0 / 1
+    assert tr.slope.isna().sum() == 1 and te.slope.isna().sum() == 1
